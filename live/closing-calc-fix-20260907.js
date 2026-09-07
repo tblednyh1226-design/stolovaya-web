@@ -61,7 +61,7 @@
 
     const bad=used>available+0.0001 || sold < -0.0001;
     card.classList.toggle('bad',bad);
-    let err=card.querySelector('.error-text');
+    let err=card.querySelector('.error-text:not(.required-missing-note)');
     if(bad&&!err){
       err=document.createElement('p');
       err.className='error-text';
@@ -79,7 +79,6 @@
   }
   function refreshActions(){
     if(state.screen!=='closing') return;
-    const complete=(state.items||[]).length>0&&(state.items||[]).every(x=>(state.entries?.[x.dish_id]?.leftover??'')!=='');
     const invalid=(state.items||[]).some(x=>{
       const e=state.entries?.[x.dish_id]||{};
       return num(e.leftover)+num(e.waste)+num(e.frozen)>num(x.available_qty)+0.0001;
@@ -91,16 +90,16 @@
     const save=document.getElementById('save-partial');
     const finalize=document.getElementById('finalize');
     if(save) save.disabled=!!state.busy||!hasFilled||invalid;
-    if(finalize) finalize.disabled=!!state.busy||!complete||invalid;
+    // Do not disable because required fields are blank: clicking the button must
+    // show the user exactly what is missing. Missing-field validation handles it.
+    if(finalize) finalize.disabled=!!state.busy||invalid;
   }
   function handle(e){
     const input=e.target?.closest?.('input[data-dish][data-field]');
     if(!input) return;
-    // The DOM already contains the value the user sees. Calculate from it immediately.
     reconcileCard(input.closest('.item-card'),input.dataset.field);
     refreshActions();
     if(typeof saveDraft==='function') saveDraft();
-    // Android IME can finish updating a field after the event callback. Recheck once more.
     setTimeout(()=>{
       if(document.body.contains(input)){
         reconcileCard(input.closest('.item-card'),input.dataset.field);
@@ -114,12 +113,8 @@
     document.addEventListener(type,handle,true);
   });
 
-  // Self-healing reconciliation. This is deliberately lightweight: only visible
-  // closing cards are inspected, and no DOM is rebuilt while the user is typing.
   setInterval(()=>reconcileAll(false),250);
 
-  // Also reconcile immediately after every render, because search/group toggles
-  // replace card DOM nodes.
   const baseRender=render;
   render=function(){
     baseRender();
