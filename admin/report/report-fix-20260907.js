@@ -22,6 +22,32 @@
   function sumPoint(code,key){
     return (state.report?.rows||[]).filter(r=>r.point_code===code).reduce((s,r)=>s+Number(r[key]||0),0);
   }
+  function addGroupTotals(){
+    if(!state.report)return;
+    const table=document.querySelector('.section .matrix');
+    if(!table||table.querySelector('.group-total'))return;
+    const ps=points();
+    const gs=groups(state.report.rows);
+    const groupRows=[...table.querySelectorAll('tbody .group-row[data-group]')];
+    groupRows.forEach((gr,i)=>{
+      const g=gs[i];
+      if(!g)return;
+      const ids=new Set(g.dishes.map(d=>d.id));
+      const tr=document.createElement('tr');
+      tr.className='group-total';
+      const cells=ps.map(p=>{
+        const rs=(state.report.rows||[]).filter(r=>r.point_code===p.code&&ids.has(r.dish_id));
+        const sum=k=>rs.reduce((s,r)=>s+Number(r[k]||0),0);
+        return `<td>${fmt(sum('opening_qty'))}</td><td>${fmt(sum('received_qty'))}</td><td>${fmt(sum('leftover_qty'))}</td><td>${fmt(sum('waste_qty'))}</td><td>${fmt(sum('frozen_qty'))}</td><td>${fmt(sum('sold_qty'))}</td>`;
+      }).join('');
+      tr.innerHTML=`<td class="sticky">Итого по группе</td>${cells}`;
+      let insertBefore=null;
+      for(let n=gr.nextElementSibling;n;n=n.nextElementSibling){
+        if(n.classList.contains('group-row')||n.classList.contains('total')){insertBefore=n;break;}
+      }
+      if(insertBefore)insertBefore.parentNode.insertBefore(tr,insertBefore); else gr.parentNode.appendChild(tr);
+    });
+  }
   function addReportControls(){
     if(!state.report)return;
     const period=document.querySelector('.period');
@@ -42,6 +68,7 @@
       box.innerHTML=`<div class="summary-head"><b>Отчёт сформирован</b><span>${esc(periodLabel())}</span></div><div class="summary-grid">${ps.map(p=>`<article><b>${esc(p.name)}</b><span>Начало: <strong>${fmt(sumPoint(p.code,'opening_qty'))}</strong></span><span>Пришло: <strong>${fmt(sumPoint(p.code,'received_qty'))}</strong></span><span>Остаток: <strong>${fmt(sumPoint(p.code,'leftover_qty'))}</strong></span><span>Продано: <strong>${fmt(sumPoint(p.code,'sold_qty'))}</strong></span></article>`).join('')}</div><p class="scroll-hint">Таблицу ниже можно двигать вправо и влево. Название блюда остаётся закреплённым.</p>`;
       firstSection.parentNode.insertBefore(box,firstSection);
     }
+    addGroupTotals();
   }
   const originalBind=bind;
   bind=function(){
