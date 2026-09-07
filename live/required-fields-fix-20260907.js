@@ -2,10 +2,20 @@
 (function(){
   const originalFinalize=finalize;
 
+  function syncVisibleLeftovers(){
+    document.querySelectorAll('input[data-dish][data-field="leftover"]').forEach(input=>{
+      const dishId=String(input.dataset.dish||'');
+      if(!dishId)return;
+      if(!state.entries[dishId]) state.entries[dishId]={leftover:'',waste:'',frozen:'',touched:{}};
+      state.entries[dishId].leftover=String(input.value??'').trim();
+    });
+  }
+
   function missingRows(){
+    syncVisibleLeftovers();
     return (state.items||[]).filter(x=>{
       const e=state.entries?.[x.dish_id]||{};
-      return (e.leftover??'')==='';
+      return String(e.leftover??'').trim()==='';
     });
   }
 
@@ -31,28 +41,42 @@
     });
   }
 
+  function showMissing(missing){
+    markMissing(missing);
+    state.message=`Не заполнено обязательное поле «Осталось» у ${missing.length} ${missing.length===1?'позиции':'позиций'}. Введите 0, если остатка нет.`;
+    render();
+    requestAnimationFrame(()=>{
+      markMissing(missingRows());
+      const first=document.querySelector('.item-card.required-missing');
+      first?.scrollIntoView({behavior:'smooth',block:'center'});
+    });
+  }
+
   finalize=async function(){
     const missing=missingRows();
     if(missing.length){
-      markMissing(missing);
-      state.message=`Не заполнено обязательное поле «Осталось» у ${missing.length} ${missing.length===1?'позиции':'позиций'}. Заполните его, даже если остаток 0.`;
-      render();
-      queueMicrotask(()=>{
-        markMissing(missingRows());
-        const first=document.querySelector('.item-card.required-missing');
-        first?.scrollIntoView({behavior:'smooth',block:'center'});
-      });
+      showMissing(missing);
       return;
     }
     clearMissingMarks();
     return originalFinalize();
   };
 
+  // Capture the submit click before any older handlers bound by the base app.
+  document.addEventListener('click',function(e){
+    const btn=e.target.closest?.('#finalize');
+    if(!btn)return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    if(state.busy)return;
+    finalize();
+  },true);
+
   document.addEventListener('input',e=>{
     const input=e.target.closest?.('input[data-dish][data-field="leftover"]');
     if(!input)return;
     const card=input.closest('.item-card');
-    if((input.value??'')!==''){
+    if(String(input.value??'').trim()!==''){
       card?.classList.remove('required-missing');
       card?.querySelector('.required-missing-note')?.remove();
     }
