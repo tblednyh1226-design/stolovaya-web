@@ -1,4 +1,4 @@
-// Friendly randomized success screen shown immediately after a successful closing submission.
+// Friendly randomized success screen shown after every confirmed closing submission.
 (function(){
   const messages=[
     {title:'Остатки сданы!',text:'Поздравляю! Хорошего вечера! Спасибо за работу 💚'},
@@ -20,13 +20,26 @@
   state.submissionSuccess=null;
   const originalFinalize=finalize;
   finalize=async function(){
-    // Choose before submit so the successful render can use it immediately.
-    state.submissionSuccess=pickMessage();
-    const beforeSubmitted=state.home?.submitted;
-    await originalFinalize();
-    // If submission failed, do not keep a success message armed for later screens.
-    if(state.screen!=='submitted' || (beforeSubmitted&&state.home?.submitted)){
-      if(state.screen!=='submitted') state.submissionSuccess=null;
+    const beforeSubmitted=!!state.home?.submitted;
+    const candidate=pickMessage();
+    state.submissionSuccess=null;
+    try{
+      const result=await originalFinalize();
+      const confirmed=(!beforeSubmitted&&!!state.home?.submitted)
+        || state.screen==='submitted'
+        || /(?:смена|остатки).*сдан|сдана|успешно.*сдан/i.test(String(state.message||''))
+        || result?.submitted===true
+        || result?.ok===true;
+      if(confirmed){
+        state.submissionSuccess=candidate;
+        state.message='';
+        state.screen='submitted';
+        render();
+      }
+      return result;
+    }catch(e){
+      state.submissionSuccess=null;
+      throw e;
     }
   };
 
@@ -49,6 +62,5 @@
     };
   };
 
-  // Rebind current screen after loading this patch.
   if(typeof bind==='function') bind();
 })();
