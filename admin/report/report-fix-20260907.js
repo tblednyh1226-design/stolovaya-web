@@ -1,5 +1,19 @@
 // Mobile/report usability fix 2026-09-07. Keeps the existing report calculation intact.
 (function(){
+  const originalGroups=groups;
+  const activityKeys=['opening_qty','received_qty','leftover_qty','waste_qty','frozen_qty','sold_qty','kitchen_in_qty','internal_in_qty','internal_out_qty','thawed_qty'];
+  function hasActivity(r){return activityKeys.some(k=>Math.abs(Number(r?.[k]||0))>0)}
+  // In the main matrix/export show only dishes that have a balance or any movement
+  // on at least one currently selected point. Freezer grouping is left unchanged.
+  groups=function(rows){
+    if(state.report && rows===state.report.rows){
+      const visibleDishIds=new Set(
+        rows.filter(r=>state.selected.has(r.point_code)&&hasActivity(r)).map(r=>r.dish_id)
+      );
+      rows=rows.filter(r=>visibleDishIds.has(r.dish_id));
+    }
+    return originalGroups(rows);
+  };
   function periodLabel(){
     if(!state.report)return '';
     if(state.mode==='day')return state.report.businessDate||state.date;
