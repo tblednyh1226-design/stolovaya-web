@@ -1,6 +1,6 @@
 // Temporary test-mode business-date selector. Remove/limit after field testing.
 const moscowToday=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Moscow'}).format(new Date());
-state.testDate=state.testDate||localStorage.getItem('stolovaya:test-date')||moscowToday();
+state.testDate=localStorage.getItem('stolovaya:test-date')||moscowToday();
 const businessDate=()=>state.home?.businessDate||state.testDate||moscowToday();
 
 loadPoint=async function(){
@@ -12,11 +12,47 @@ loadPoint=async function(){
     rpc('public_freezer_items',common),
     rpc('public_incoming_transfers',common)
   ]);
-  state.home=h;state.testDate=h.businessDate||day;localStorage.setItem('stolovaya:test-date',state.testDate);
-  state.items=d;state.freezer=f;state.incoming=inc;
-  const saved=JSON.parse(localStorage.getItem(draftKey())||'null')||{};const next={};
-  for(const x of d){next[x.dish_id]=saved[x.dish_id]||{leftover:x.leftover_qty==null?'':String(x.leftover_qty),waste:x.waste_qty==null?'':String(x.waste_qty),frozen:x.frozen_qty==null?'':String(x.frozen_qty),touched:{leftover:false,waste:false,frozen:false}}}
-  state.entries=next;state.message='';
+  state.home=h;
+  state.testDate=h.businessDate||day;
+  localStorage.setItem('stolovaya:test-date',state.testDate);
+  state.items=d||[];
+  state.freezer=f||[];
+  state.incoming=Array.isArray(inc)?inc:[];
+  const saved=JSON.parse(localStorage.getItem(draftKey())||'null')||{};
+  const next={};
+  for(const x of state.items){
+    next[x.dish_id]=saved[x.dish_id]||{
+      leftover:x.leftover_qty==null?'':String(x.leftover_qty),
+      waste:x.waste_qty==null?'':String(x.waste_qty),
+      frozen:x.frozen_qty==null?'':String(x.frozen_qty),
+      touched:{leftover:false,waste:false,frozen:false}
+    };
+  }
+  state.entries=next;
+  state.message='';
+};
+
+choosePoint=async function(code){
+  if(!code)return;
+  state.point=code;
+  state.message='';
+  state.screen='loading';
+  render();
+  try{
+    await loadPoint();
+    state.screen='home';
+  }catch(e){
+    console.error('Point load failed',e);
+    state.message=e?.message||'Не удалось открыть точку';
+    state.screen='point';
+  }
+  render();
+};
+
+const basePointScreen=pointScreen;
+pointScreen=function(){
+  const html=basePointScreen();
+  return state.message?html.replace('</section>',`<p class="error-text">${esc(state.message)}</p></section>`):html;
 };
 
 const originalHeader=header;
@@ -41,9 +77,19 @@ saveCorrection=async function(){const x=state.items.find(i=>i.dish_id===state.co
 const originalBind=bind;
 bind=function(){
   originalBind();
+  document.querySelectorAll('[data-point]').forEach(b=>{b.onclick=()=>choosePoint(b.dataset.point)});
   const picker=document.getElementById('test-business-date');
-  if(picker)picker.onchange=async e=>{const value=e.target.value;if(!value)return;state.testDate=value;localStorage.setItem('stolovaya:test-date',value);state.screen='loading';render();try{await loadPoint();state.screen='home'}catch(err){state.message=err.message||'Не удалось открыть выбранную дату';state.screen='home'}render()};
+  if(picker)picker.onchange=async e=>{
+    const value=e.target.value;
+    if(!value)return;
+    state.testDate=value;
+    localStorage.setItem('stolovaya:test-date',value);
+    state.screen='loading';
+    render();
+    try{await loadPoint();state.screen='home'}catch(err){state.message=err?.message||'Не удалось открыть выбранную дату';state.screen='home'}
+    render();
+  };
 };
 
-// Rebind the currently rendered screen so the date picker works immediately after this patch loads.
+// Rebind currently rendered screen after this patch loads.
 bind();
