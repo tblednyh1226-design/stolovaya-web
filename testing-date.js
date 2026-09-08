@@ -59,7 +59,8 @@ const originalHeader=header;
 header=function(){
   const base=originalHeader();
   if(!state.home)return base;
-  return base+`<section class="test-date-bar"><label><span>Дата рабочего дня <small>режим тестирования</small></span><input id="test-business-date" type="date" value="${esc(state.testDate||state.home.businessDate)}"></label></section>`;
+  const today=moscowToday();
+  return base+`<section class="test-date-bar"><label><span>Дата рабочего дня <small>режим тестирования</small></span><input id="test-business-date" type="date" min="2026-09-01" max="${today}" value="${esc(state.testDate||state.home.businessDate)}"></label></section>`;
 };
 
 savePartial=async function(){const payload=[];for(const x of state.items){const e=state.entries[x.dish_id];if(!e)continue;const row={dishId:x.dish_id};let changed=false;for(const f of ['leftover','waste','frozen'])if(e.touched?.[f]&&e[f]!==''){row[f]=n(e[f]);changed=true}if(changed)payload.push(row)}if(!payload.length)return;state.busy=true;render();try{await rpc('public_save_closing_partial',{p_token:state.token,p_point_code:state.point,p_entries:payload,p_actor:'Буфетчик',p_business_date:businessDate()});await loadPoint();state.message='Посчитанное сохранено'}catch(e){state.message=e.message}finally{state.busy=false;render()}};
@@ -77,6 +78,12 @@ saveCorrection=async function(){const x=state.items.find(i=>i.dish_id===state.co
 const originalBind=bind;
 bind=function(){
   originalBind();
+  // Calendar must always allow the current Moscow business day, including today.
+  const today=moscowToday();
+  document.querySelectorAll('input[type="date"]').forEach(input=>{
+    input.min='2026-09-01';
+    input.max=today;
+  });
   document.querySelectorAll('[data-point]').forEach(b=>{b.onclick=()=>choosePoint(b.dataset.point)});
   const picker=document.getElementById('test-business-date');
   if(picker)picker.onchange=async e=>{
