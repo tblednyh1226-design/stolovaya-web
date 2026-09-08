@@ -1,6 +1,7 @@
 (()=>{
   const STYLE=`<style id="buffet-help-style">
   .buffet-help-btn{width:100%;margin-top:12px;border:1px solid #ded9cc;border-radius:16px;padding:14px 16px;background:#fff;color:#315f49;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px}
+  .buffet-help-btn.point-help{margin-top:14px}
   .buffet-help-overlay{position:fixed;inset:0;z-index:9999;background:rgba(24,32,27,.42);display:flex;align-items:flex-end;justify-content:center;padding:12px}
   .buffet-help-modal{width:min(100%,720px);max-height:92vh;overflow:auto;background:#f6f3ea;border-radius:22px 22px 16px 16px;padding:16px;box-shadow:0 18px 60px rgba(0,0,0,.22)}
   .buffet-help-head{position:sticky;top:-16px;z-index:2;background:#f6f3ea;padding:14px 0 10px;display:flex;justify-content:space-between;align-items:center;gap:12px}
@@ -28,6 +29,15 @@
     </div></div>`;
   function openHelp(){if(document.getElementById('buffet-help-overlay'))return;document.body.insertAdjacentHTML('beforeend',HELP);document.getElementById('buffet-help-close')?.addEventListener('click',closeHelp);document.getElementById('buffet-help-overlay')?.addEventListener('click',e=>{if(e.target.id==='buffet-help-overlay')closeHelp()});document.body.style.overflow='hidden'}
   function closeHelp(){document.getElementById('buffet-help-overlay')?.remove();document.body.style.overflow=''}
-  function mount(){if(!document.getElementById('buffet-help-style'))document.head.insertAdjacentHTML('beforeend',STYLE);const actions=document.querySelector('.home-actions');if(!actions||document.getElementById('buffet-help-btn'))return;const btn=document.createElement('button');btn.id='buffet-help-btn';btn.className='buffet-help-btn';btn.type='button';btn.innerHTML='<span>?</span> Как работать';btn.addEventListener('click',openHelp);actions.insertAdjacentElement('afterend',btn)}
+  function makeButton(extraClass=''){const btn=document.createElement('button');btn.className=`buffet-help-btn ${extraClass}`.trim();btn.type='button';btn.innerHTML='<span>?</span> Как работать';btn.addEventListener('click',openHelp);return btn}
+  function mount(){
+    if(!document.getElementById('buffet-help-style'))document.head.insertAdjacentHTML('beforeend',STYLE);
+    document.querySelectorAll('.buffet-help-btn').forEach((el,i)=>{if(i>0)el.remove()});
+    if(document.querySelector('.buffet-help-btn'))return;
+    const actions=document.querySelector('.home-actions');
+    if(actions){actions.insertAdjacentElement('afterend',makeButton());return}
+    const pointList=document.querySelector('.point-choice-list');
+    if(pointList){pointList.insertAdjacentElement('afterend',makeButton('point-help'));return}
+  }
   new MutationObserver(mount).observe(document.getElementById('app'),{childList:true,subtree:true});mount();
 })();
