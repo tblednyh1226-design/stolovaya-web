@@ -4,7 +4,10 @@ const moscowToday=()=>{
   const map=Object.fromEntries(parts.map(p=>[p.type,p.value]));
   return `${map.year}-${map.month}-${map.day}`;
 };
-state.testDate=localStorage.getItem('stolovaya:test-date')||moscowToday();
+// Every fresh opening of the buffet interface starts on today's Moscow date.
+// A different date can still be selected manually for backfill/corrections.
+state.testDate=moscowToday();
+localStorage.setItem('stolovaya:test-date',state.testDate);
 const businessDate=()=>state.home?.businessDate||state.testDate||moscowToday();
 
 loadPoint=async function(){
