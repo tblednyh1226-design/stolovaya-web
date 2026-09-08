@@ -1,22 +1,34 @@
-// Prevent the buffet UI from hanging forever while opening a point.
-// Critical data (home + daily items) must load; optional freezer/transfers may fail without blocking entry.
+// Point opening resilience for the Yandex -> Supabase bridge.
+// Critical requests are executed sequentially and retried once to avoid a cold-start/concurrency stall.
 const __baseRpc = rpc;
-rpc = async function(name, body){
-  const timeoutMs = 15000;
+
+async function __rpcWithTimeout(name, body, timeoutMs){
   return await Promise.race([
     __baseRpc(name, body),
     new Promise((_, reject)=>setTimeout(()=>reject(new Error(`Не отвечает база: ${name}`)), timeoutMs))
   ]);
+}
+
+rpc = async function(name, body){
+  const critical = name === 'public_home' || name === 'public_daily_items_v2';
+  const timeoutMs = critical ? 30000 : 15000;
+  try{
+    return await __rpcWithTimeout(name, body, timeoutMs);
+  }catch(firstError){
+    if(!critical) throw firstError;
+    // One retry is useful for a freshly started Cloud Function instance.
+    await new Promise(resolve=>setTimeout(resolve, 600));
+    return await __rpcWithTimeout(name, body, timeoutMs);
+  }
 };
 
 loadPoint = async function(){
   const day = state.testDate || moscowToday();
   const common = {p_token:state.token,p_point_code:state.point,p_business_date:day};
 
-  const [homeResult, itemsResult] = await Promise.all([
-    rpc('public_home', common),
-    rpc('public_daily_items_v2', common)
-  ]);
+  // Do not fire the two heaviest point-opening calls at exactly the same time.
+  const homeResult = await rpc('public_home', common);
+  const itemsResult = await rpc('public_daily_items_v2', common);
 
   const [freezerResult, incomingResult] = await Promise.allSettled([
     rpc('public_freezer_items', common),
