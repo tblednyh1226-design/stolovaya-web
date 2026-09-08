@@ -33,7 +33,7 @@
       const name=decodeURIComponent(gr.dataset.group||''),g=byName.get(name);if(!g)return;
       const ids=new Set(g.dishes.map(d=>d.id)),tr=document.createElement('tr');tr.className='group-total';
       tr.innerHTML=`<td class="sticky">Итого: ${esc(name)}</td>${ps.map(p=>{const rs=(state.report.rows||[]).filter(r=>r.point_code===p.code&&ids.has(r.dish_id));return `<td>${fmt(sumRows(rs,'opening_qty'))}</td><td>${fmt(sumRows(rs,'received_qty'))}</td><td>${fmt(sumRows(rs,'thawed_qty'))}</td><td>${fmt(sumRows(rs,'leftover_qty'))}</td><td>${fmt(sumRows(rs,'waste_qty'))}</td><td>${fmt(sumRows(rs,'frozen_qty'))}</td><td>${fmt(sumRows(rs,'sold_qty'))}</td>`}).join('')}`;
-      let before=null;for(let n=gr.nextElementSibling;n;n=n.nextElementElementSibling){if(n.classList.contains('group-row')||n.classList.contains('total')){before=n;break}}
+      let before=null;for(let n=gr.nextElementSibling;n;n=n.nextElementSibling){if(n.classList.contains('group-row')||n.classList.contains('total')){before=n;break}}
       before?before.parentNode.insertBefore(tr,before):gr.parentNode.appendChild(tr);
     });
   }
