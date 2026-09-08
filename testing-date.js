@@ -1,5 +1,9 @@
 // Temporary test-mode business-date selector. Remove/limit after field testing.
-const moscowToday=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Moscow'}).format(new Date());
+const moscowToday=()=>{
+  const parts=new Intl.DateTimeFormat('ru-RU',{timeZone:'Europe/Moscow',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+  const map=Object.fromEntries(parts.map(p=>[p.type,p.value]));
+  return `${map.year}-${map.month}-${map.day}`;
+};
 state.testDate=localStorage.getItem('stolovaya:test-date')||moscowToday();
 const businessDate=()=>state.home?.businessDate||state.testDate||moscowToday();
 
@@ -78,7 +82,6 @@ saveCorrection=async function(){const x=state.items.find(i=>i.dish_id===state.co
 const originalBind=bind;
 bind=function(){
   originalBind();
-  // Calendar must always allow the current Moscow business day, including today.
   const today=moscowToday();
   document.querySelectorAll('input[type="date"]').forEach(input=>{
     input.min='2026-09-01';
@@ -98,5 +101,4 @@ bind=function(){
   };
 };
 
-// Rebind currently rendered screen after this patch loads.
 bind();
