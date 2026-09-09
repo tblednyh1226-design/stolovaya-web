@@ -1,0 +1,24 @@
+/* Mobile: fixed service buttons must not cover working sticky actions. */
+@media (max-width:560px){
+  body{padding-bottom:0}
+  .help-entry,.admin-entry{
+    position:fixed!important;
+    bottom:8px!important;
+    z-index:9999!important;
+    min-height:42px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    box-shadow:0 4px 14px #0002;
+  }
+  .help-entry{left:8px!important;right:auto!important;max-width:46vw;padding:8px 12px!important}
+  .admin-entry{right:8px!important;left:auto!important;max-width:46vw;padding:8px 12px!important}
+  .sticky-action{
+    bottom:58px!important;
+    z-index:10000;
+    padding-bottom:6px;
+    background:linear-gradient(transparent,var(--bg) 24%,var(--bg) 100%);
+  }
+  .sticky-toast{bottom:112px!important}
+  .app{padding-bottom:118px!important}
+}
