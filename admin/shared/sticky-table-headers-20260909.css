@@ -1,0 +1,26 @@
+/* Keep column names visible while scrolling long admin tables. */
+.wrap,
+.closing-wrap{
+  max-height:calc(100vh - 96px);
+  overflow:auto;
+  overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
+}
+.matrix thead th,
+.closing-table thead th{
+  position:sticky!important;
+  top:0!important;
+  z-index:30!important;
+  box-shadow:0 1px 0 rgba(49,95,73,.16);
+}
+.matrix thead tr:nth-child(2) th{
+  top:34px!important;
+  z-index:31!important;
+}
+.matrix thead .sticky,
+.closing-table thead th:first-child{
+  z-index:40!important;
+}
+@media(max-width:700px){
+  .wrap,.closing-wrap{max-height:calc(100vh - 72px)}
+}
