@@ -1,0 +1,15 @@
+/* Make wide all-points report horizontally scrollable with a visible scrollbar. */
+.wrap{
+  overflow-x:scroll!important;
+  overflow-y:auto!important;
+  scrollbar-gutter:stable both-edges;
+  padding-bottom:10px;
+}
+.wrap::-webkit-scrollbar{height:12px;width:12px}
+.wrap::-webkit-scrollbar-track{background:#eeeae0;border-radius:999px}
+.wrap::-webkit-scrollbar-thumb{background:#aeb8ae;border-radius:999px;border:2px solid #eeeae0}
+.matrix{width:max-content;min-width:100%}
+@media(max-width:700px){
+  .wrap{padding-bottom:12px;touch-action:pan-x pan-y}
+  .wrap::-webkit-scrollbar{height:14px}
+}
