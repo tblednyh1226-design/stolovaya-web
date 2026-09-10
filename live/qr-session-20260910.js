@@ -5,6 +5,19 @@ const point=new URLSearchParams(location.search).get('point')||localStorage.getI
 const role=new URLSearchParams(location.search).get('role')||localStorage.getItem('stolovaya:employee-role')||'buffet';
 const name=localStorage.getItem('stolovaya:employee-name')||'Сотрудник';
 const greeting=sessionStorage.getItem('stolovaya:greeting')||'Хорошей смены! 🌷';
+function moscowDay(){return new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Moscow',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date())}
+function resetForNewDay(){
+  const authDay=localStorage.getItem('stolovaya:employee-auth-date')||'';
+  if(authDay&&authDay===moscowDay())return false;
+  const qr=localStorage.getItem('stolovaya:qr-token')||'';
+  ['stolovaya:web-token','stolovaya:employee-name','stolovaya:employee-session','stolovaya:employee-role','stolovaya:employee-auth-date'].forEach(k=>localStorage.removeItem(k));
+  sessionStorage.removeItem('stolovaya:greeting');
+  if(qr){location.replace(`./?qr=${encodeURIComponent(qr)}&fresh=${Date.now()}`);return true}
+  location.replace('./');return true;
+}
+if(resetForNewDay())return;
+setInterval(()=>{if(document.visibilityState!=='hidden')resetForNewDay()},30000);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')resetForNewDay()});
 function enter(){
  if(typeof state==='undefined'||typeof choosePoint!=='function'){setTimeout(enter,80);return}
  const oldHome=homeScreen;
