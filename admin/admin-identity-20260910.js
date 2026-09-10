@@ -1,10 +1,20 @@
 // Mandatory administrator identity selection after the admin access code.
-// The selected identity is also bound to the server-side admin session.
+// The selected identity is kept for the lifetime of the current admin session.
 (function(){
-  state.adminIdentity=null;
+  function readSavedIdentity(){
+    try{return JSON.parse(sessionStorage.getItem('stolovaya:admin-employee')||'null')}catch{return null}
+  }
+  state.adminIdentity=readSavedIdentity();
+  if(state.adminIdentity?.fullName)state.actor=state.adminIdentity.fullName;
 
   function adminPeople(){
     return (state.directory?.employees||[]).filter(e=>e.isActive&&Array.isArray(e.roles)&&e.roles.includes('admin'));
+  }
+  function savedIdentityStillValid(){
+    if(!state.adminIdentity?.id)return false;
+    const current=adminPeople().find(e=>String(e.id)===String(state.adminIdentity.id));
+    if(!current){state.adminIdentity=null;sessionStorage.removeItem('stolovaya:admin-employee');return false}
+    return true;
   }
   function identityScreen(){
     const people=adminPeople();
@@ -33,7 +43,7 @@
 
   const baseApp=app;
   app=function(){
-    if(state.directory&&!state.adminIdentity)return identityScreen();
+    if(state.directory&&!savedIdentityStillValid())return identityScreen();
     return baseApp();
   };
 
