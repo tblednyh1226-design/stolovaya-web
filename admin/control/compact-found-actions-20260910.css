@@ -1,0 +1,11 @@
+/* Keep found-after-closing admin actions compact and on one row on phones. */
+#found-after-closing .alert-head{display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;align-items:center!important;gap:10px!important}
+#found-after-closing .alert-actions{display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;width:auto!important;gap:8px!important}
+#found-after-closing .alert-actions button{flex:0 0 auto!important;width:auto!important;min-width:108px!important;white-space:nowrap!important;padding:10px 12px!important}
+#found-after-closing .alert p{margin:8px 0 4px!important}
+@media(max-width:700px){
+  #found-after-closing .alert-head{grid-template-columns:1fr!important}
+  #found-after-closing .alert-actions{width:100%!important;display:grid!important;grid-template-columns:1fr 1fr!important}
+  #found-after-closing .alert-actions button{width:100%!important;min-width:0!important}
+  #found-after-closing .details-head>div>p{font-size:14px;line-height:1.25}
+}
