@@ -18,7 +18,7 @@
     let html=baseHome();
     const c=cfg();
     if(!c)return html;
-    // Only for these two points: replace the ordinary transfer action with kitchen receipt.
+    // Only Bukhara and Pravda change. Every other point keeps ordinary «Создать перемещение».
     html=html.replace(/<button data-screen="transfer"[^>]*>[\s\S]*?<\/button>/,
       `<button type="button" id="kitchen-supply-open" ${state.home?.submitted||state.home?.dayClosed?'disabled':''}><span>⇩</span><div><b>Получить с кухни</b><small>${esc(c.source)} → ${esc(c.target)}</small></div></button>`);
     return html;
@@ -30,7 +30,7 @@
     if(state.kitchenSupplyLoadedFor===state.point&&state.kitchenSupplyDishes.length)return;
     state.kitchenSupplyBusy=true;render();
     try{
-      state.kitchenSupplyDishes=await rpc('public_kitchen_supply_dishes',{p_token:state.token,p_point_code:state.point});
+      state.kitchenSupplyDishes=await rpc('public_kitchen_dish_options',{p_token:state.token,p_point_code:state.point});
       state.kitchenSupplyLoadedFor=state.point;
     }catch(e){state.message=e.message||'Не удалось загрузить блюда'}
     finally{state.kitchenSupplyBusy=false;render()}
@@ -46,7 +46,7 @@
     const rows=supplyRows();
     const selected=Object.values(state.kitchenSupplyQty).filter(v=>n(v)>0).length;
     return `${header()}${back('Получить с кухни')}
-      <section class="question-card kitchen-source"><h2>${esc(c.source)} → ${esc(c.target)}</h2><p>Выберите блюда и фактическое количество, которое получили с кухни. После проведения будут сформированы <b>акт приготовления</b> и <b>акт перемещения</b> для последующей выгрузки в iiko.</p></section>
+      <section class="question-card kitchen-source"><h2>${esc(c.source)} → ${esc(c.target)}</h2><p>Выберите блюда и фактическое количество, которое получили с кухни. После проведения приложение сразу добавит блюда в доступное количество раздачи и сформирует два документа: <b>акт приготовления</b> на кухне и <b>акт перемещения</b> с кухни на раздачу.</p></section>
       <input id="kitchen-supply-search" class="search" placeholder="Найти блюдо или код" value="${esc(state.kitchenSupplySearch)}">
       ${state.kitchenSupplyBusy?'<div class="notice">Загружаем справочник блюд…</div>':`<div class="simple-cards kitchen-supply-list">${rows.map(x=>`<article><div><b>${esc(clean(x.name))}</b><small>${esc(x.group||'Прочее')}${x.code?` · ${esc(x.code)}`:''}</small></div><input data-kitchen-supply="${esc(x.dishId)}" inputmode="decimal" value="${esc(state.kitchenSupplyQty[x.dishId]||'')}" placeholder="0"></article>`).join('')}</div>`}
       <div class="sticky-action"><button id="kitchen-supply-send" class="primary" ${state.kitchenSupplyBusy||selected===0?'disabled':''}>${state.kitchenSupplyBusy?'Проводим…':`Провести получение${selected?` · ${selected}`:''}`}</button></div>
@@ -60,11 +60,11 @@
     if(!confirm(`Провести получение с кухни?\nПозиций: ${items.length}`))return;
     state.kitchenSupplyBusy=true;state.message='';render();
     try{
-      const r=await rpc('public_receive_from_kitchen',{p_token:state.token,p_point_code:state.point,p_items:items,p_actor:employeeActor(),p_business_date:businessDate()});
+      const r=await rpc('public_receive_from_local_kitchen',{p_token:state.token,p_point_code:state.point,p_items:items,p_actor:employeeActor(),p_business_date:businessDate()});
       state.kitchenSupplyQty={};state.kitchenSupplySearch='';
       await loadPoint();
       state.screen='home';
-      state.message=`Получение проведено. Сформированы акт приготовления ${r.productionDocument} и акт перемещения ${r.transferDocument}.`;
+      state.message=`Получение проведено. Сформированы ${r.productionDocumentNumber} и ${r.transferDocumentNumber}.`;
     }catch(e){state.message=e.message||'Не удалось провести получение'}
     finally{state.kitchenSupplyBusy=false;render()}
   }
