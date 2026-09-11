@@ -18,9 +18,8 @@
     let html=baseHome();
     const c=cfg();
     if(!c)return html;
-    const sub=c.transfer?`${c.source} → ${c.target}`:`${c.source} · продажи с кухни`;
     html=html.replace(/<button data-screen="transfer"[^>]*>[\s\S]*?<\/button>/,
-      `<button type="button" id="kitchen-supply-open" ${state.home?.submitted||state.home?.dayClosed?'disabled':''}><span>⇩</span><div><b>Получить с кухни</b><small>${esc(sub)}</small></div></button>`);
+      `<button type="button" id="kitchen-supply-open" ${state.home?.submitted||state.home?.dayClosed?'disabled':''}><span>⇩</span><div><b>Получить с кухни</b></div></button>`);
     return html;
   };
 
