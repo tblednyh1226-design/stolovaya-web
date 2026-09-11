@@ -1,25 +1,36 @@
-// Move the closed-day informational notice near the shift status instead of below all actions.
+// Keep the closed-day informational notice near the top instead of below the screen content.
 (function(){
   const NOTICE='Смена за выбранную дату уже сдана.';
-  function moveNotice(){
-    if(state.screen!=='home')return;
-    const shift=app.querySelector('.shift-status');
-    if(!shift)return;
-    const candidates=[...app.querySelectorAll('p,div,section')].filter(el=>{
-      if(el===shift||shift.contains(el))return false;
+  let moving=false;
+  function findNotice(){
+    const nodes=[...app.querySelectorAll('p,div,section')].filter(el=>{
       const text=(el.textContent||'').trim();
       return text.startsWith(NOTICE)&&text.includes('администраторскую корректировку');
     });
-    // Prefer the smallest matching element so we do not move a parent that contains buttons.
-    const notice=candidates.sort((a,b)=>a.children.length-b.children.length)[0];
-    if(!notice||shift.nextElementSibling===notice)return;
+    // Pick the smallest matching node, not a large parent container.
+    return nodes.sort((a,b)=>(a.textContent||'').length-(b.textContent||'').length)[0]||null;
+  }
+  function moveNotice(){
+    if(moving)return;
+    const notice=findNotice();
+    if(!notice)return;
+    const shift=app.querySelector('.shift-status');
+    const header=app.querySelector('header');
+    const anchor=shift||header;
+    if(!anchor)return;
+    if(anchor.nextElementSibling===notice)return;
+    moving=true;
     notice.classList.add('closed-day-top-notice');
-    shift.insertAdjacentElement('afterend',notice);
+    anchor.insertAdjacentElement('afterend',notice);
+    moving=false;
   }
   const style=document.createElement('style');
-  style.textContent='.closed-day-top-notice{margin:12px 0 18px!important}';
+  style.textContent='.closed-day-top-notice{margin:10px 0 16px!important;padding:12px 14px!important;background:#fff7df!important;border:1px solid #ead79a!important;border-radius:14px!important;color:#445048!important}';
   document.head.appendChild(style);
+
   const baseRender=render;
-  render=function(){baseRender();queueMicrotask(moveNotice)};
-  queueMicrotask(moveNotice);
+  render=function(){baseRender();requestAnimationFrame(moveNotice)};
+  const observer=new MutationObserver(()=>requestAnimationFrame(moveNotice));
+  observer.observe(app,{childList:true,subtree:true});
+  requestAnimationFrame(moveNotice);
 })();
