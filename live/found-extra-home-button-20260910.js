@@ -1,20 +1,5 @@
-// Keep «Нашла ещё» reliably visible on a submitted/closed day.
+// Keep «Нашла ещё» permanently visible on the point home screen.
 (function(){
-  const CLOSED_TEXT='Смена за выбранную дату уже сдана.';
-
-  function stateSaysClosed(){
-    const h=state.home||{};
-    return !!(h.submitted||h.dayClosed);
-  }
-
-  function domSaysClosed(){
-    return (app?.textContent||'').includes(CLOSED_TEXT);
-  }
-
-  function shouldShow(){
-    return stateSaysClosed()||domSaysClosed();
-  }
-
   function buttonHtml(){
     return '<button type="button" id="found-extra-home-btn" class="wide-secondary found-extra-home"><span style="font-size:20px">＋</span><b>Нашла ещё</b><small>Добавить найденное после сдачи</small></button>';
   }
@@ -31,7 +16,6 @@
   const baseHome=homeScreen;
   homeScreen=function(){
     let html=baseHome();
-    if(!stateSaysClosed())return html;
     if(/id="found-extra-home-btn"/.test(html))return html;
     const button=buttonHtml();
     if(html.includes('<button id="change-point"')){
@@ -46,12 +30,12 @@
   submittedScreen=function(){
     let html=baseSubmitted();
     html=html.replace(/(data-screen="found-extra"[^>]*?)\sdisabled/g,'$1');
-    if(stateSaysClosed()&&!/id="found-extra-home-btn"/.test(html))html+=buttonHtml();
+    if(!/id="found-extra-home-btn"/.test(html))html+=buttonHtml();
     return html;
   };
 
   function ensureButton(){
-    if(!(state.screen==='home'||state.screen==='submitted')||!shouldShow())return;
+    if(!(state.screen==='home'||state.screen==='submitted'))return;
     let btn=document.getElementById('found-extra-home-btn');
     if(!btn){
       const wrap=document.createElement('div');
