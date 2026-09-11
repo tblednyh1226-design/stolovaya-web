@@ -1,8 +1,8 @@
-// Special flow for Bukhara/Pravda distribution points: receive dishes from their own kitchen.
+// Special flow for Bukhara/Pravda kitchen receipt.
 (function(){
   const SPECIAL={
-    BUKHARA:{source:'Бухара Кухня',target:'Бухара раздача'},
-    PRAVDA:{source:'Правда Кухня',target:'Правда раздача'}
+    BUKHARA:{source:'Бухара Кухня',target:'Бухара раздача',transfer:true},
+    PRAVDA:{source:'Правда Кухня',target:'Правда Кухня',transfer:false}
   };
   state.kitchenSupplyDishes=[];
   state.kitchenSupplyQty={};
@@ -18,8 +18,9 @@
     let html=baseHome();
     const c=cfg();
     if(!c)return html;
+    const sub=c.transfer?`${c.source} → ${c.target}`:`${c.source} · продажи с кухни`;
     html=html.replace(/<button data-screen="transfer"[^>]*>[\s\S]*?<\/button>/,
-      `<button type="button" id="kitchen-supply-open" ${state.home?.submitted||state.home?.dayClosed?'disabled':''}><span>⇩</span><div><b>Получить с кухни</b><small>${esc(c.source)} → ${esc(c.target)}</small></div></button>`);
+      `<button type="button" id="kitchen-supply-open" ${state.home?.submitted||state.home?.dayClosed?'disabled':''}><span>⇩</span><div><b>Получить с кухни</b><small>${esc(sub)}</small></div></button>`);
     return html;
   };
 
@@ -44,8 +45,12 @@
     const c=cfg();if(!c)return `${header()}${back('Получить с кухни')}<div class="notice">Эта операция доступна только на Бухаре и Правде.</div>`;
     const rows=supplyRows();
     const selected=Object.values(state.kitchenSupplyQty).filter(v=>n(v)>0).length;
+    const title=c.transfer?`${c.source} → ${c.target}`:c.source;
+    const hint=c.transfer
+      ?`Выберите блюда и фактическое количество, которое получили с кухни. После проведения приложение добавит блюда в доступное количество раздачи и сформирует <b>акт приготовления</b> и <b>акт перемещения</b> с кухни на раздачу.`
+      :`Выберите блюда и фактическое количество. После проведения приложение добавит их в доступное количество точки и сформирует <b>акт приготовления</b> на «Правда Кухня». Отдельного перемещения на раздачу здесь нет: продажи идут непосредственно со склада «Правда Кухня».`;
     return `${header()}${back('Получить с кухни')}
-      <section class="question-card kitchen-source"><h2>${esc(c.source)} → ${esc(c.target)}</h2><p>Выберите блюда и фактическое количество, которое получили с кухни. После проведения приложение сразу добавит блюда в доступное количество раздачи и сформирует два документа: <b>акт приготовления</b> на кухне и <b>акт перемещения</b> с кухни на раздачу.</p></section>
+      <section class="question-card kitchen-source"><h2>${esc(title)}</h2><p>${hint}</p></section>
       <input id="kitchen-supply-search" class="search" placeholder="Найти блюдо или код" value="${esc(state.kitchenSupplySearch)}">
       ${state.kitchenSupplyBusy?'<div class="notice">Загружаем справочник блюд…</div>':`<div class="simple-cards kitchen-supply-list">${rows.map(x=>`<article><div><b>${esc(clean(x.name))}</b><small>${esc(x.group||'Прочее')}${x.code?` · ${esc(x.code)}`:''}</small></div><input data-kitchen-supply="${esc(x.dishId)}" inputmode="decimal" value="${esc(state.kitchenSupplyQty[x.dishId]||'')}" placeholder="0"></article>`).join('')}</div>`}
       <div class="sticky-action"><button id="kitchen-supply-send" class="primary" ${state.kitchenSupplyBusy||selected===0?'disabled':''}>${state.kitchenSupplyBusy?'Проводим…':`Провести получение${selected?` · ${selected}`:''}`}</button></div>
@@ -54,6 +59,7 @@
 
   async function sendKitchenSupply(){
     if(state.kitchenSupplyBusy)return;
+    const c=cfg();
     const items=(state.kitchenSupplyDishes||[]).filter(x=>n(state.kitchenSupplyQty[x.dishId])>0).map(x=>({dishId:x.dishId,quantity:n(state.kitchenSupplyQty[x.dishId])}));
     if(!items.length)return;
     if(!confirm(`Провести получение с кухни?\nПозиций: ${items.length}`))return;
@@ -63,7 +69,9 @@
       state.kitchenSupplyQty={};state.kitchenSupplySearch='';
       await loadPoint();
       state.screen='home';
-      state.message=`Получение проведено. Сформированы ${r.productionDocument} и ${r.transferDocument}.`;
+      state.message=c?.transfer
+        ?`Получение проведено. Сформированы ${r.productionDocument} и ${r.transferDocument}.`
+        :`Получение проведено. Сформирован акт приготовления ${r.productionDocument}.`;
     }catch(e){state.message=e.message||'Не удалось провести получение'}
     finally{state.kitchenSupplyBusy=false;render()}
   }
