@@ -18,7 +18,7 @@
   }
   function identityScreen(){
     const people=adminPeople();
-    return `<main class="admin"><section class="card login admin-fio-login"><h1>Кто входит в админку?</h1><p>Выберите своё ФИО. Действия в админке будут записываться от этого имени.</p><div class="point-choice-list">${people.map(e=>`<button type="button" class="admin-fio-choice" data-admin-id="${esc(e.id)}">${esc(e.fullName)}${e.roles.includes('developer')?'<small>Разработчик</small>':''}</button>`).join('')}</div><button id="admin-fio-back" class="secondary" type="button">Назад</button>${state.message?`<p class="message">${esc(state.message)}</p>`:''}</section></main>`;
+    return `<main class="admin"><section class="card login admin-fio-login"><h1>Кто входит в админку?</h1><p>Выберите своё ФИО. Действия в админке будут записываться от этого имени.</p><div class="point-choice-list">${people.map(e=>`<button type="button" class="admin-fio-choice" data-admin-id="${esc(e.id)}">${esc(e.fullName)}</button>`).join('')}</div><button id="admin-fio-back" class="secondary" type="button">Назад</button>${state.message?`<p class="message">${esc(state.message)}</p>`:''}</section></main>`;
   }
   async function chooseIdentity(id){
     if(state.busy)return;
@@ -37,8 +37,7 @@
     const html=baseHome();
     if(!state.adminIdentity)return html;
     const name=esc(state.adminIdentity.fullName||'Администратор');
-    const role=state.adminIdentity.isDeveloper?'Разработчик':'Администратор';
-    return html.replace('<p class="subtitle">Выберите раздел</p>',`<p class="subtitle">${name} · ${role}</p>`);
+    return html.replace('<p class="subtitle">Выберите раздел</p>',`<p class="subtitle">${name}</p>`);
   };
 
   const baseApp=app;
