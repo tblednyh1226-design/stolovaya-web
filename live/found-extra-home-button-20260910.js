@@ -1,8 +1,18 @@
 // Keep «Нашла ещё» reliably visible on a submitted/closed day.
 (function(){
-  function shouldShow(){
+  const CLOSED_TEXT='Смена за выбранную дату уже сдана.';
+
+  function stateSaysClosed(){
     const h=state.home||{};
     return !!(h.submitted||h.dayClosed);
+  }
+
+  function domSaysClosed(){
+    return (app?.textContent||'').includes(CLOSED_TEXT);
+  }
+
+  function shouldShow(){
+    return stateSaysClosed()||domSaysClosed();
   }
 
   function buttonHtml(){
@@ -10,7 +20,6 @@
   }
 
   function openFound(){
-    if(!shouldShow())return;
     state.foundDish='';
     state.foundQty='';
     state.foundComment='';
@@ -22,15 +31,11 @@
   const baseHome=homeScreen;
   homeScreen=function(){
     let html=baseHome();
-    if(!shouldShow())return html;
+    if(!stateSaysClosed())return html;
     if(/id="found-extra-home-btn"/.test(html))return html;
     const button=buttonHtml();
-    // Put the action immediately after the main home actions, before point switching.
-    if(html.includes('</section><button id="change-point"')){
-      html=html.replace('</section><button id="change-point"','</section>'+button+'<button id="change-point"');
-    }else if(html.includes('</section>')){
-      const pos=html.indexOf('</section>')+10;
-      html=html.slice(0,pos)+button+html.slice(pos);
+    if(html.includes('<button id="change-point"')){
+      html=html.replace('<button id="change-point"',button+'<button id="change-point"');
     }else{
       html+=button;
     }
@@ -40,23 +45,29 @@
   const baseSubmitted=submittedScreen;
   submittedScreen=function(){
     let html=baseSubmitted();
-    // Never disable «Нашла ещё» just because the day is closed.
     html=html.replace(/(data-screen="found-extra"[^>]*?)\sdisabled/g,'$1');
-    if(shouldShow()&&!/id="found-extra-home-btn"/.test(html)){
-      html+=buttonHtml();
-    }
+    if(stateSaysClosed()&&!/id="found-extra-home-btn"/.test(html))html+=buttonHtml();
     return html;
   };
 
   function ensureButton(){
     if(!(state.screen==='home'||state.screen==='submitted')||!shouldShow())return;
-    if(document.getElementById('found-extra-home-btn'))return;
-    const host=app.querySelector('.home-actions')||app.querySelector('.success-card')||app;
-    const wrap=document.createElement('div');
-    wrap.innerHTML=buttonHtml();
-    const btn=wrap.firstElementChild;
-    if(host===app)app.appendChild(btn);else host.insertAdjacentElement('afterend',btn);
-    btn.addEventListener('click',openFound);
+    let btn=document.getElementById('found-extra-home-btn');
+    if(!btn){
+      const wrap=document.createElement('div');
+      wrap.innerHTML=buttonHtml();
+      btn=wrap.firstElementChild;
+      const adminMsg=document.getElementById('admin-message-open');
+      const change=document.getElementById('change-point');
+      if(adminMsg){
+        adminMsg.insertAdjacentElement('afterend',btn);
+      }else if(change){
+        change.parentNode.insertBefore(btn,change);
+      }else{
+        app.appendChild(btn);
+      }
+    }
+    btn.onclick=openFound;
   }
 
   const baseBind=bind;
@@ -67,6 +78,7 @@
       btn.disabled=false;
       btn.addEventListener('click',e=>{e.preventDefault();openFound()});
     });
+    requestAnimationFrame(ensureButton);
   };
 
   const style=document.createElement('style');
@@ -90,9 +102,9 @@
   const baseRender=render;
   render=function(){
     baseRender();
-    requestAnimationFrame(ensureButton);
+    requestAnimationFrame(()=>requestAnimationFrame(ensureButton));
   };
   const observer=new MutationObserver(()=>requestAnimationFrame(ensureButton));
   observer.observe(app,{childList:true,subtree:true});
-  requestAnimationFrame(ensureButton);
+  requestAnimationFrame(()=>requestAnimationFrame(ensureButton));
 })();
