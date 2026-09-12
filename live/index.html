@@ -1,6 +1,6 @@
 <!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#f6f3ea"><title>Столовая — рабочий интерфейс</title><link rel="stylesheet" href="../style.css?v=live20260908-1235"><link rel="stylesheet" href="../testing-date.css?v=live20260908-1235"><link rel="stylesheet" href="mobile-fixed-actions-20260909.css?v=20260911-1112"><style>.item-card.required-missing{outline:2px solid #b85b4b;outline-offset:-2px;background:#fff7f4}.static-group{cursor:default}.static-group i{display:none}.help-entry{position:fixed;left:10px;bottom:10px;z-index:9999;text-decoration:none;background:#fff;color:#315f49;border:1px solid #cfc9bb;border-radius:999px;padding:10px 14px;font:700 12px Arial,sans-serif;box-shadow:0 4px 14px #0002}.admin-entry{z-index:9999}.employee-chip{font-size:12px;font-weight:700;color:#315f49;background:#eef2e7;padding:6px 9px;border-radius:999px;margin-left:auto}.qr-login .point-choice-list button{font-size:17px;padding:15px;margin:7px 0}.weak-net-note{font-size:13px;color:#777;margin-top:14px}.retry-btn{margin-top:12px}</style></head><body><main id="app" class="app"><section class="loading-card">Загрузка…</section></main><a class="help-entry" href="../instruction.html?v=20260911-1103">Как работать?</a><a class="admin-entry" href="../admin/">Администратор</a><script>
 (async()=>{
-const BUILD='20260912-1820';
+const BUILD='20260912-2328';
 const root=document.getElementById('app');
 const qs=new URLSearchParams(location.search);
 const qr=qs.get('qr');
@@ -21,7 +21,7 @@ if(qr){
   async function loadOptions(){msg='';info=null;view();try{info=await rpc('public_qr_employee_options',{p_qr_token:qr});view()}catch(e){msg=e.name==='AbortError'?'Очень слабый интернет. Попробуйте ещё раз.':(e.message||'Ошибка связи');view()}}
   await loadOptions();return;
 }
-const files=['../yandex-bridge-20260908.js','../app.js','../testing-date.js','live-patch-20260907-0825.js','closing-calc-fix-20260907.js','save-partial-fix-20260907.js','submission-success-20260907.js','required-fields-fix-20260907.js','all-dish-groups-20260907.js','found-after-closing-20260908.js','point-load-resilience-20260908.js','admin-message-20260908.js','shawarma-next-day-rule-20260908.js','freezer-date-fix-20260910.js','point-employee-auth-20260910.js','qr-session-20260910.js','closed-day-notice-position-20260910.js','found-extra-home-button-20260910.js','kitchen-supply-20260911.js'];
+const files=['../yandex-bridge-20260908.js','../app.js','../testing-date.js','live-patch-20260907-0825.js','closing-calc-fix-20260907.js','save-partial-fix-20260907.js','submission-success-20260907.js','required-fields-fix-20260907.js','all-dish-groups-20260907.js','found-after-closing-20260908.js','point-load-resilience-20260908.js','admin-message-20260908.js','shawarma-next-day-rule-20260908.js','freezer-date-fix-20260910.js','point-employee-auth-20260910.js','qr-session-20260910.js','closed-day-notice-position-20260910.js','found-extra-home-button-20260910.js','kitchen-supply-20260911.js','freezer-refreeze-guard-20260912.js'];
 try{
  root.innerHTML='<section class="loading-card">Загрузка приложения…<br><small>При слабом интернете подождите, пожалуйста.</small></section>';
  const parts=new Array(files.length);let next=0;
