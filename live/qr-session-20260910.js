@@ -19,7 +19,17 @@ if(resetForNewDay())return;
 setInterval(()=>{if(document.visibilityState!=='hidden')resetForNewDay()},30000);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')resetForNewDay()});
 function enter(){
- if(typeof state==='undefined'||typeof choosePoint!=='function'){setTimeout(enter,80);return}
+ if(typeof state==='undefined'||typeof choosePoint!=='function'||typeof rpc!=='function'){setTimeout(enter,80);return}
+ const baseRpc=rpc;
+ rpc=async function(proc,body){
+   const b=body&&typeof body==='object'?{...body}:body;
+   if(b&&/^public_/.test(proc)){
+     if(Object.prototype.hasOwnProperty.call(b,'p_actor')) b.p_actor=name;
+     else if(['public_save_closing_partial','public_finalize_closing','public_create_transfer','public_receive_transfer','public_report_found_after_closing','public_set_freezer_out'].includes(proc)) b.p_actor=name;
+   }
+   return baseRpc(proc,b);
+ };
+ window.rpc=rpc;
  const oldHome=homeScreen;
  window.homeScreen=function(){const html=oldHome();const hello=`<section class="success-card" id="employee-hello" style="margin-bottom:12px"><b style="font-size:22px">👋</b><h2 style="margin:4px 0">${name}</h2><p>${greeting}</p></section>`;setTimeout(()=>{const el=document.getElementById('employee-hello');if(el)setTimeout(()=>el.remove(),7000)},100);return html.replace('<section class="shift-status',hello+'<section class="shift-status')};
  const oldPoint=pointScreen;
