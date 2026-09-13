@@ -1,16 +1,24 @@
 // Special flow for Bukhara/Pravda kitchen receipt.
 (function(){
-  const SPECIAL={
-    BUKHARA:{source:'Бухара Кухня',target:'Бухара раздача',transfer:true},
-    PRAVDA:{source:'Правда Кухня',target:'Правда Кухня',transfer:false}
-  };
   state.kitchenSupplyDishes=[];
   state.kitchenSupplyQty={};
   state.kitchenSupplySearch='';
   state.kitchenSupplyBusy=false;
   state.kitchenSupplyLoadedFor='';
 
-  function cfg(){return SPECIAL[state.point]||null}
+  function currentBusinessDate(){
+    try{return state.home?.businessDate||businessDate()||''}catch{return state.home?.businessDate||''}
+  }
+  function cfg(){
+    if(state.point==='BUKHARA')return {source:'Бухара Кухня',target:'Бухара раздача',transfer:true};
+    if(state.point==='PRAVDA'){
+      const after=currentBusinessDate()>='2026-09-25';
+      return after
+        ?{source:'Правда Кухня',target:'Правда раздача',transfer:true}
+        :{source:'Правда Кухня',target:'Правда Кухня',transfer:false};
+    }
+    return null;
+  }
   function employeeActor(){return localStorage.getItem('stolovaya:employee-name')||sessionStorage.getItem('stolovaya:employee-name')||'Буфетчик'}
 
   const baseHome=homeScreen;
@@ -47,7 +55,7 @@
     const title=c.transfer?`${c.source} → ${c.target}`:c.source;
     const hint=c.transfer
       ?`Выберите блюда и фактическое количество, которое получили с кухни. После проведения приложение добавит блюда в доступное количество раздачи и сформирует <b>акт приготовления</b> и <b>акт перемещения</b> с кухни на раздачу.`
-      :`Выберите блюда и фактическое количество. После проведения приложение добавит их в доступное количество точки и сформирует <b>акт приготовления</b> на «Правда Кухня». Отдельного перемещения на раздачу здесь нет: продажи идут непосредственно со склада «Правда Кухня».`;
+      :`Выберите блюда и фактическое количество. До 25 сентября продажи на Правде идут непосредственно со склада «Правда Кухня», поэтому отдельное перемещение на раздачу не создаётся. С 25 сентября маршрут автоматически переключится на «Правда Кухня → Правда раздача».`;
     return `${header()}${back('Получить с кухни')}
       <section class="question-card kitchen-source"><h2>${esc(title)}</h2><p>${hint}</p></section>
       <input id="kitchen-supply-search" class="search" placeholder="Найти блюдо или код" value="${esc(state.kitchenSupplySearch)}">
@@ -68,7 +76,7 @@
       state.kitchenSupplyQty={};state.kitchenSupplySearch='';
       await loadPoint();
       state.screen='home';
-      state.message=c?.transfer
+      state.message=r.transferDocument
         ?`Получение проведено. Сформированы ${r.productionDocument} и ${r.transferDocument}.`
         :`Получение проведено. Сформирован акт приготовления ${r.productionDocument}.`;
     }catch(e){state.message=e.message||'Не удалось провести получение'}
