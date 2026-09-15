@@ -5,10 +5,13 @@
     return `../document/?${q.toString()}`;
   }
   function isKitchenTransit(a){
-    const from=String(a.meta?.fromStore||a.meta?.fromStoreName||'').toLowerCase();
-    const to=String(a.meta?.toStore||a.meta?.toStoreName||'').toLowerCase();
-    const status=String(a.meta?.status||'').toLowerCase();
-    return status==='warehouse_transit'||(from.includes('кухн')&&to.includes('кухн'));
+    const meta=a.meta||{};
+    const from=String(meta.fromStore||meta.fromStoreName||meta.sourceStore||meta.sourceWarehouse||'').toLowerCase();
+    const to=String(meta.toStore||meta.toStoreName||meta.destinationStore||meta.destinationWarehouse||'').toLowerCase();
+    const status=String(meta.status||meta.documentStatus||'').toLowerCase();
+    const text=[a.title,a.description,a.pointName,meta.route,meta.fromStore,meta.toStore,meta.fromStoreName,meta.toStoreName].filter(Boolean).join(' ').toLowerCase();
+    const knownKitchenRoute=(text.includes('правда кухня')&&text.includes('бухара кухня'))||(text.includes('бухара кухня')&&text.includes('правда кухня'));
+    return status==='warehouse_transit'||(from.includes('кухн')&&to.includes('кухн'))||knownKitchenRoute;
   }
   const oldAlertCard=alertCard;
   alertCard=function(a){
