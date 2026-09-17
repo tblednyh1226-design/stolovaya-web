@@ -3,9 +3,16 @@
   state.openPoint=state.openPoint||'';
   const baseDetailsPanel=detailsPanel;
 
+  function isBukharaKitchen(a){
+    const code=String(a.pointCode||'').trim().toUpperCase();
+    const name=String(a.pointName||'').trim().toUpperCase().replace(/Ё/g,'Е');
+    return code==='BUKHARA_KITCHEN'||name==='БУХАРА КУХНЯ';
+  }
+
   function pointGroups(items){
     const map=new Map();
     for(const a of items){
+      if(isBukharaKitchen(a))continue;
       const code=a.pointCode||a.pointName||'UNKNOWN';
       if(!map.has(code))map.set(code,{code,name:a.pointName||a.pointCode||'Без точки',items:[]});
       map.get(code).items.push(a);
@@ -15,7 +22,7 @@
 
   detailsPanel=function(alerts){
     if(state.panel!=='open')return baseDetailsPanel(alerts);
-    const items=alerts.filter(a=>a.kind==='missing_close');
+    const items=alerts.filter(a=>a.kind==='missing_close'&&!isBukharaKitchen(a));
     const groups=pointGroups(items);
     const selected=groups.find(g=>g.code===state.openPoint);
 
