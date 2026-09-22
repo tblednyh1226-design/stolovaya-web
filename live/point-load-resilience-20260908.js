@@ -44,9 +44,12 @@ loadPoint = async function(){
 
   // Build destination list locally from active sales points returned by the backend.
   // This is deliberately separate from the kiosk's source-access list.
-  const transferPoints = await rpc('public_transfer_point_options', {p_token:state.token,p_point_code:state.point});
-  state.transferPoints = Array.isArray(transferPoints) ? transferPoints : [];
-  if (!state.transferPoints.length) throw new Error('Не загружены точки для перемещения');
+  try {
+    const transferPoints = await rpc('public_transfer_point_options', {p_token:state.token,p_point_code:state.point});
+    state.transferPoints = Array.isArray(transferPoints) ? transferPoints : [];
+  } catch (_e) {
+    state.transferPoints = [];
+  }
 
   const saved = JSON.parse(localStorage.getItem(draftKey()) || 'null') || {};
   const next = {};
