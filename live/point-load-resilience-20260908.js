@@ -10,7 +10,7 @@ async function __rpcWithTimeout(name, body, timeoutMs){
 }
 
 rpc = async function(name, body){
-  const critical = name === 'public_home' || name === 'public_daily_items_v2';
+  const critical = name === 'public_home' || name === 'public_daily_items_v2' || name === 'public_point_bootstrap';
   const timeoutMs = critical ? 30000 : 15000;
   try{
     return await __rpcWithTimeout(name, body, timeoutMs);
@@ -26,10 +26,10 @@ loadPoint = async function(){
   const day = state.testDate || moscowToday();
   const common = {p_token:state.token,p_point_code:state.point,p_business_date:day};
 
-  // Do not fire the two heaviest point-opening calls at exactly the same time.
-  const homeResult = await rpc('public_home', common);
-  const itemsResult = await rpc('public_daily_items_v2', common);
-
+  // One round-trip returns both the home state and today's dishes.
+  const boot = await rpc('public_point_bootstrap', common);
+  const homeResult = boot?.home || {};
+  const itemsResult = boot?.items || [];
   state.home = homeResult;
   state.testDate = homeResult.businessDate || day;
   localStorage.setItem('stolovaya:test-date', state.testDate);
