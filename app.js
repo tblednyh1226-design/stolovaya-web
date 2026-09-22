@@ -20,7 +20,7 @@ async function loadPoint(){const [h,d,f,inc]=await Promise.all([
  rpc('public_daily_items_v2',{p_token:state.token,p_point_code:state.point}),
  rpc('public_freezer_items',{p_token:state.token,p_point_code:state.point}),
  rpc('public_incoming_transfers',{p_token:state.token,p_point_code:state.point})
-]);state.home=h;state.items=d;state.freezer=f;state.incoming=inc;const saved=JSON.parse(localStorage.getItem(draftKey())||'null')||{};const next={};for(const x of d){next[x.dish_id]=saved[x.dish_id]||{leftover:x.leftover_qty==null?'':String(x.leftover_qty),waste:x.waste_qty==null?'':String(x.waste_qty),frozen:x.frozen_qty==null?'':String(x.frozen_qty),touched:{leftover:false,waste:false,frozen:false}}}state.entries=next;state.message=''}
+]);state.home=h;state.items=d;state.freezer=f;state.incoming=inc;try{state.points=await rpc('public_transfer_point_options',{p_token:state.token,p_point_code:state.point})}catch(_e){}const saved=JSON.parse(localStorage.getItem(draftKey())||'null')||{};const next={};for(const x of d){next[x.dish_id]=saved[x.dish_id]||{leftover:x.leftover_qty==null?'':String(x.leftover_qty),waste:x.waste_qty==null?'':String(x.waste_qty),frozen:x.frozen_qty==null?'':String(x.frozen_qty),touched:{leftover:false,waste:false,frozen:false}}}state.entries=next;state.message=''}
 function saveDraft(){if(state.home&&state.point)localStorage.setItem(draftKey(),JSON.stringify(state.entries))}
 function header(){return `<header><div class="brand"><b>Столовая</b><small>${esc(state.home?.pointName||'')}</small></div>${state.home?`<div class="date-chip">${esc(state.home.businessDate)}</div>`:''}</header>`}
 function back(title){return `<div class="screen-title"><button class="back" data-screen="home">←</button><h1>${esc(title)}</h1></div>`}
