@@ -28,7 +28,7 @@ function enter(){
  const oldPoint=pointScreen;
  window.pointScreen=function(){if(role==='admin')return oldPoint();return '<section class="notice">Загружаем рабочий день…</section>'};
  if(role!=='admin'){
-   const open=()=>{if(!state.token||!point)return false;state.point=point;choosePoint(point);return true};
+   let opening=false;const open=()=>{if(opening||!state.token||!point)return false;opening=true;state.point=point;choosePoint(point);return true};
    if(!open()){
      let tries=0;
      const timer=setInterval(()=>{tries++;if(open()||tries>=100)clearInterval(timer)},50);
