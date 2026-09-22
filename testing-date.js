@@ -25,6 +25,9 @@ loadPoint=async function(){
   state.items=d||[];
   state.freezer=f||[];
   state.incoming=Array.isArray(inc)?inc:[];
+  const transferPoints=await rpc('public_transfer_point_options',{p_token:state.token,p_point_code:state.point});
+  state.transferPoints=Array.isArray(transferPoints)?transferPoints:[];
+  if(!state.transferPoints.length)throw new Error('Не загружены точки для перемещения');
   const saved=JSON.parse(localStorage.getItem(draftKey())||'null')||{};
   const next={};
   for(const x of state.items){
