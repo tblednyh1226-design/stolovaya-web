@@ -23,16 +23,6 @@ setInterval(()=>{if(document.visibilityState!=='hidden')resetForNewDay()},30000)
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')resetForNewDay()});
 function enter(){
  if(typeof state==='undefined'||typeof choosePoint!=='function'||typeof rpc!=='function'){setTimeout(enter,80);return}
- const baseRpc=rpc;
- rpc=async function(proc,body){
-   const b=body&&typeof body==='object'?{...body}:body;
-   if(b&&/^public_/.test(proc)){
-     if(Object.prototype.hasOwnProperty.call(b,'p_actor')) b.p_actor=name;
-     else if(['public_save_closing_partial','public_finalize_closing','public_create_transfer','public_receive_transfer','public_report_found_after_closing','public_set_freezer_out'].includes(proc)) b.p_actor=name;
-   }
-   return baseRpc(proc,b);
- };
- window.rpc=rpc;
  const oldHome=homeScreen;
  window.homeScreen=function(){const html=oldHome();const hello=`<section class="success-card" id="employee-hello" style="margin-bottom:12px"><b style="font-size:22px">👋</b><h2 style="margin:4px 0">${name}</h2><p>${greeting}</p></section>`;setTimeout(()=>{const el=document.getElementById('employee-hello');if(el)setTimeout(()=>el.remove(),7000)},100);return html.replace('<section class="shift-status',hello+'<section class="shift-status')};
  const oldPoint=pointScreen;
@@ -40,12 +30,11 @@ function enter(){
  const oldBind=bind;
  window.bind=function(){oldBind();document.getElementById('qr-return')?.addEventListener('click',()=>choosePoint(point));};
  if(role!=='admin'){
-   state.point=point;
-   // app.js also restores the saved token asynchronously and can race this kiosk flow,
-   // putting the employee back on the intermediate point screen. Re-assert the fixed
-   // employee point after that startup task has had a chance to finish.
-   choosePoint(point);
-   setTimeout(()=>{if(state.screen==='point' && state.token && point) choosePoint(point)},500);
+   const open=()=>{if(!state.token||!point)return false;state.point=point;choosePoint(point);return true};
+   if(!open()){
+     let tries=0;
+     const timer=setInterval(()=>{tries++;if(open()||tries>=100)clearInterval(timer)},50);
+   }
  } else {state.screen='point';render();}
 }
 enter();
