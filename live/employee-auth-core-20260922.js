@@ -2,7 +2,7 @@
 const qs=new URLSearchParams(location.search);
 const point=qs.get('point')||localStorage.getItem('stolovaya:qr-point')||'';
 const employee=qs.get('employee')==='1';
-if(!employee||!point)return;
+if(!employee||!point)return;document.querySelector('.admin-entry')?.remove();
 const name=localStorage.getItem('stolovaya:employee-name')||'Сотрудник';
 const role=localStorage.getItem('stolovaya:employee-role')||'buffet';
 const greeting=sessionStorage.getItem('stolovaya:greeting')||'Хорошей смены! 🌷';
