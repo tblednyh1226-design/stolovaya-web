@@ -42,14 +42,11 @@ loadPoint = async function(){
   state.freezer = freezerResult.status === 'fulfilled' && Array.isArray(freezerResult.value) ? freezerResult.value : [];
   state.incoming = incomingResult.status === 'fulfilled' && Array.isArray(incomingResult.value) ? incomingResult.value : [];
 
-  // Destination points are independent from the kiosk's own access-point list.
-  // Load them after every point open because this patch replaces app.js loadPoint().
-  try {
-    const transferPoints = await rpc('public_transfer_point_options', {p_token:state.token,p_point_code:state.point});
-    state.transferPoints = Array.isArray(transferPoints) ? transferPoints : [];
-  } catch (_e) {
-    state.transferPoints = [];
-  }
+  // Build destination list locally from active sales points returned by the backend.
+  // This is deliberately separate from the kiosk's source-access list.
+  const transferPoints = await rpc('public_transfer_point_options', {p_token:state.token,p_point_code:state.point});
+  state.transferPoints = Array.isArray(transferPoints) ? transferPoints : [];
+  if (!state.transferPoints.length) throw new Error('Не загружены точки для перемещения');
 
   const saved = JSON.parse(localStorage.getItem(draftKey()) || 'null') || {};
   const next = {};
