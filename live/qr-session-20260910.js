@@ -36,12 +36,16 @@ function enter(){
  const oldHome=homeScreen;
  window.homeScreen=function(){const html=oldHome();const hello=`<section class="success-card" id="employee-hello" style="margin-bottom:12px"><b style="font-size:22px">👋</b><h2 style="margin:4px 0">${name}</h2><p>${greeting}</p></section>`;setTimeout(()=>{const el=document.getElementById('employee-hello');if(el)setTimeout(()=>el.remove(),7000)},100);return html.replace('<section class="shift-status',hello+'<section class="shift-status')};
  const oldPoint=pointScreen;
- window.pointScreen=function(){if(role==='admin')return oldPoint();return `<section class="access-card"><div class="brand-login">Столовая</div><h1>${name}</h1><p>Рабочая точка закреплена за сотрудником.</p><button class="primary" id="qr-return">Открыть свою точку</button></section>`};
+ window.pointScreen=function(){if(role==='admin')return oldPoint();return `<section class="access-card"><div class="brand-login">Столовая</div><h1>${name}</h1><p>Рабочая точка закреплена за сотрудником.</p><button class="primary" id="qr-return" onclick="choosePoint('${String(point).replace(/'/g,"\\'")}')">Открыть свою точку</button></section>`};
  const oldBind=bind;
  window.bind=function(){oldBind();document.getElementById('qr-return')?.addEventListener('click',()=>choosePoint(point));};
  if(role!=='admin'){
    state.point=point;
+   // app.js also restores the saved token asynchronously and can race this kiosk flow,
+   // putting the employee back on the intermediate point screen. Re-assert the fixed
+   // employee point after that startup task has had a chance to finish.
    choosePoint(point);
+   setTimeout(()=>{if(state.screen==='point' && state.token && point) choosePoint(point)},500);
  } else {state.screen='point';render();}
 }
 enter();
