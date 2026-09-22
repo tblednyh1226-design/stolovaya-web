@@ -40,7 +40,6 @@ function enter(){
  const oldBind=bind;
  window.bind=function(){oldBind();document.getElementById('qr-return')?.addEventListener('click',()=>choosePoint(point));};
  if(role!=='admin'){
-   state.points=(state.points||[]).filter(p=>p.point_code===point);
    state.point=point;
    choosePoint(point);
  } else {state.screen='point';render();}
