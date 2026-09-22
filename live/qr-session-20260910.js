@@ -25,6 +25,8 @@ function enter(){
  if(typeof state==='undefined'||typeof choosePoint!=='function'||typeof rpc!=='function'){setTimeout(enter,80);return}
  const oldHome=homeScreen;
  window.homeScreen=function(){const html=oldHome();const hello=`<section class="success-card" id="employee-hello" style="margin-bottom:12px"><b style="font-size:22px">👋</b><h2 style="margin:4px 0">${name}</h2><p>${greeting}</p></section>`;setTimeout(()=>{const el=document.getElementById('employee-hello');if(el)setTimeout(()=>el.remove(),7000)},100);return html.replace('<section class="shift-status',hello+'<section class="shift-status')};
+ const oldPoint=pointScreen;
+ window.pointScreen=function(){if(role==='admin')return oldPoint();return '<section class="notice">Загружаем рабочий день…</section>'};
  if(role!=='admin'){
    const open=()=>{if(!state.token||!point)return false;state.point=point;choosePoint(point);return true};
    if(!open()){
