@@ -30,26 +30,33 @@ loadPoint = async function(){
   const homeResult = await rpc('public_home', common);
   const itemsResult = await rpc('public_daily_items_v2', common);
 
-  const [freezerResult, incomingResult] = await Promise.allSettled([
-    rpc('public_freezer_items', common),
-    rpc('public_incoming_transfers', common)
-  ]);
-
   state.home = homeResult;
   state.testDate = homeResult.businessDate || day;
   localStorage.setItem('stolovaya:test-date', state.testDate);
   state.items = Array.isArray(itemsResult) ? itemsResult : [];
-  state.freezer = freezerResult.status === 'fulfilled' && Array.isArray(freezerResult.value) ? freezerResult.value : [];
-  state.incoming = incomingResult.status === 'fulfilled' && Array.isArray(incomingResult.value) ? incomingResult.value : [];
 
-  // Build destination list locally from active sales points returned by the backend.
-  // This is deliberately separate from the kiosk's source-access list.
-  try {
-    const transferPoints = await rpc('public_transfer_point_options', {p_token:state.token,p_point_code:state.point});
-    state.transferPoints = Array.isArray(transferPoints) ? transferPoints : [];
-  } catch (_e) {
-    state.transferPoints = [];
-  }
+  // Secondary data must never hold the point on the loading screen.
+  // Keep the resilient sequential loading for the two critical calls above,
+  // then refresh freezer, incoming transfers and transfer destinations in background.
+  state.freezer = [];
+  state.incoming = [];
+  state.transferPoints = [];
+  const openedPoint = state.point;
+  Promise.allSettled([
+    rpc('public_freezer_items', common),
+    rpc('public_incoming_transfers', common),
+    rpc('public_transfer_point_options', {p_token:state.token,p_point_code:state.point})
+  ]).then(results => {
+    if (state.point !== openedPoint) return;
+    const [freezerResult, incomingResult, transferPointsResult] = results;
+    state.freezer = freezerResult.status === 'fulfilled' && Array.isArray(freezerResult.value) ? freezerResult.value : [];
+    state.incoming = incomingResult.status === 'fulfilled' && Array.isArray(incomingResult.value) ? incomingResult.value : [];
+    state.transferPoints = transferPointsResult.status === 'fulfilled' && Array.isArray(transferPointsResult.value) ? transferPointsResult.value : [];
+    if (state.home) {
+      state.home.pendingTransfers = state.incoming.length;
+      render();
+    }
+  });
 
   const saved = JSON.parse(localStorage.getItem(draftKey()) || 'null') || {};
   const next = {};
