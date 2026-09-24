@@ -122,7 +122,7 @@
     const key=historyKey(d);
     const editing=state.editing.has(key);
     const saving=state.saving.has(key);
-    const content=items.length?groupedItems(d,items):singleDish
+    const content=items.length?`<div class="document-items-scroll">${groupedItems(d,items)}</div>`:singleDish
       ?`<section class="doc-dish-group"><h4>${esc(x.group||'Прочее')}</h4><div class="items"><div><span>${esc(x.dish)}</span></div></div></section>`
       :`<pre>${esc(JSON.stringify(x,null,2))}</pre>`;
     const editable=items.some(i=>i.editable);
