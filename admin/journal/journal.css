@@ -14,3 +14,10 @@
   .details .doc-group::after{content:"↕";position:absolute;right:2px;top:48px;bottom:8px;width:8px;border-radius:8px;background:#d5dad6;color:#66736b;font-size:0;pointer-events:none}
   .details .doc-group .items::after{content:""}
 }
+
+/* One scrollbar for the entire opened realization/utilization document. */
+.document-items-scroll{max-height:420px;overflow-y:scroll;overscroll-behavior:contain;scrollbar-gutter:stable;padding-right:10px;-webkit-overflow-scrolling:touch;scrollbar-width:auto}
+.document-items-scroll::-webkit-scrollbar{width:12px;-webkit-appearance:none}
+.document-items-scroll::-webkit-scrollbar-track{background:#e7ebe7;border-radius:10px}
+.document-items-scroll::-webkit-scrollbar-thumb{background:#77847b;border-radius:10px;border:2px solid #e7ebe7;min-height:44px}
+@media(max-width:760px){.document-items-scroll{max-height:330px;overflow-y:scroll;padding-right:12px}.document-items-scroll::-webkit-scrollbar{width:12px}.details .doc-dish-group .items{max-height:none;overflow:visible;padding-right:0}.details .doc-dish-group::after{display:none}}
