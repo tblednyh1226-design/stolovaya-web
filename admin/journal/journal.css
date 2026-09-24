@@ -5,3 +5,12 @@
 .details .doc-group .items::-webkit-scrollbar{width:10px}
 .details .doc-group .items::-webkit-scrollbar-thumb{background:#b8beb9;border-radius:10px;border:2px solid #fff}
 .details .doc-group .items::-webkit-scrollbar-track{background:#f3f5f1;border-radius:10px}
+
+/* Mobile: always-visible vertical scrollbar for long document item lists.
+   Native mobile scrollbars are often hidden, so use a persistent visual thumb. */
+@media(max-width:760px){
+  .details .doc-group .items{max-height:320px;overflow-y:scroll;position:relative;scrollbar-width:auto}
+  .details .doc-group{position:relative}
+  .details .doc-group::after{content:"↕";position:absolute;right:2px;top:48px;bottom:8px;width:8px;border-radius:8px;background:#d5dad6;color:#66736b;font-size:0;pointer-events:none}
+  .details .doc-group .items::after{content:""}
+}
