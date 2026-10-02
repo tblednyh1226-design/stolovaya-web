@@ -14,13 +14,13 @@
       table.querySelectorAll('.closing-group-total').forEach(x=>x.remove());
       const groups=[...table.querySelectorAll('tbody tr.closing-group')];
       for(const groupRow of groups){
-        const sums=[0,0,0,0,0,0,0];
+        const sums=[0,0,0,0,0,0,0,0];
         let row=groupRow.nextElementSibling;
         let lastDish=null;
         while(row && !row.classList.contains('closing-group') && !row.classList.contains('closing-total')){
           if(!row.classList.contains('closing-group-total')){
             const cells=[...row.children];
-            for(let i=1;i<=7;i++)sums[i-1]+=cellValue(cells[i]);
+            for(let i=1;i<=8;i++)sums[i-1]+=cellValue(cells[i]);
             lastDish=row;
           }
           row=row.nextElementSibling;
