@@ -35,17 +35,24 @@
     };
 
     const retryable=new Set([429,500,502,503,504]);
+    const safeRetryRpc=new Set([
+      'public_admin_session_from_buffet_token','public_admin_web_login','public_daily_items_v2',
+      'public_employee_meal_summary','public_freezer_items','public_global_chat_unread','public_home',
+      'public_incoming_transfers','public_kitchen_supply_dishes','public_point_bootstrap',
+      'public_point_options','public_transfer_point_options','public_web_login','admin_employee_directory'
+    ]);
+    const maxAttempts=safeRetryRpc.has(rpcName)?3:1;
     let lastError=null;
-    for(let attempt=0;attempt<3;attempt++){
+    for(let attempt=0;attempt<maxAttempts;attempt++){
       let timer=null;
       try{
         const controller=new AbortController();
         timer=setTimeout(()=>controller.abort(),12000);
         const response=await nativeFetch(YANDEX_BRIDGE,{...bridgeInit,signal:controller.signal});
-        if(!retryable.has(response.status)||attempt===2)return response;
+        if(!retryable.has(response.status)||attempt===maxAttempts-1)return response;
       }catch(error){
         lastError=error;
-        if(attempt===2)throw error;
+        if(attempt===maxAttempts-1)throw error;
       }finally{
         if(timer)clearTimeout(timer);
       }
