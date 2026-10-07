@@ -115,7 +115,7 @@ module.exports.handler = async function handler(event, context) {
     const remaining = typeof context?.getRemainingTimeInMillis === 'function'
       ? context.getRemainingTimeInMillis()
       : 10000;
-    const upstreamTimeout = Math.max(1500, Math.min(7000, remaining - 1200));
+    const upstreamTimeout = Math.max(1200, Math.min(2500, remaining - 800));
     const started = Date.now();
 
     try {
@@ -133,7 +133,7 @@ module.exports.handler = async function handler(event, context) {
         RETRYABLE_STATUS.has(upstream.status) &&
         attempt < maxAttempts
       ) {
-        await new Promise(resolve => setTimeout(resolve, 250));
+        await new Promise(resolve => setTimeout(resolve, 200));
         continue;
       }
 
@@ -150,7 +150,7 @@ module.exports.handler = async function handler(event, context) {
       }));
 
       if (attempt < maxAttempts) {
-        await new Promise(resolve => setTimeout(resolve, 250));
+        await new Promise(resolve => setTimeout(resolve, 200));
         continue;
       }
     }
