@@ -1,0 +1,24 @@
+name: Diagnose Yandex gateway once
+on:
+  push:
+    paths:
+      - ".github/workflows/diagnose-yandex-gateway-once.yml"
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test Yandex function and Supabase proxy
+        shell: bash
+        run: |
+          set +e
+          URL="https://functions.yandexcloud.net/d4e3fd70tje1bpctpfbs"
+          echo "=== OPTIONS ==="
+          curl -sS -i -X OPTIONS --max-time 20 "$URL"
+          echo
+          echo "=== POST public_point_options with invalid diagnostic token ==="
+          curl -sS -i -X POST --max-time 30 \
+            -H 'Content-Type: application/json' \
+            --data '{"rpc":"public_point_options","body":{"p_token":"diagnostic-invalid-token"}}' \
+            "$URL"
+          echo
+          echo "=== DONE ==="
