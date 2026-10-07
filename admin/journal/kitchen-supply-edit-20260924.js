@@ -2,7 +2,7 @@
 (function(){
   state.ksoDishOptions=state.ksoDishOptions||null;
   state.ksoDrafts=state.ksoDrafts||{};
-  const isKso=d=>d?.doc_type==='movement'&&String(d.title||'').startsWith('KSO-');
+  const isKso=d=>d?.doc_type==='movement'&&(/^KSO-/.test(String(d.title||''))||/^MOVE-(BUKHARA|PRAVDA-KITCHEN)-/.test(String(d.title||'')));
   const key=(d,i)=>historyKey(d)+'|kso|'+i.itemId;
   const baseDetails=details;
   details=function(d){
