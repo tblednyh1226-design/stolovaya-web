@@ -41,13 +41,13 @@
       'public_incoming_transfers','public_kitchen_supply_dishes','public_point_bootstrap',
       'public_point_options','public_transfer_point_options','public_web_login','admin_employee_directory'
     ]);
-    const maxAttempts=safeRetryRpc.has(rpcName)?3:1;
+    const maxAttempts=safeRetryRpc.has(rpcName)?2:1;
     let lastError=null;
     for(let attempt=0;attempt<maxAttempts;attempt++){
       let timer=null;
       try{
         const controller=new AbortController();
-        timer=setTimeout(()=>controller.abort(),12000);
+        timer=setTimeout(()=>controller.abort(),3500);
         const response=await nativeFetch(YANDEX_BRIDGE,{...bridgeInit,signal:controller.signal});
         if(!retryable.has(response.status)||attempt===maxAttempts-1)return response;
       }catch(error){
@@ -56,7 +56,7 @@
       }finally{
         if(timer)clearTimeout(timer);
       }
-      await new Promise(resolve=>setTimeout(resolve,700*(attempt+1)));
+      await new Promise(resolve=>setTimeout(resolve,300));
     }
     throw lastError||new Error('Yandex gateway unavailable');
   };
