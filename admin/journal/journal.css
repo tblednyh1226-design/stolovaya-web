@@ -21,3 +21,21 @@
 .document-items-scroll::-webkit-scrollbar-track{background:#e7ebe7;border-radius:10px}
 .document-items-scroll::-webkit-scrollbar-thumb{background:#77847b;border-radius:10px;border:2px solid #e7ebe7;min-height:44px}
 @media(max-width:760px){.document-items-scroll{max-height:330px;overflow-y:scroll;padding-right:12px}.document-items-scroll::-webkit-scrollbar{width:12px}.details .doc-dish-group .items{max-height:none;overflow:visible;padding-right:0}.details .doc-dish-group::after{display:none}}
+
+
+/* Batch editor for "Получить с кухни": existing rows + added dishes. */
+.kso-items{gap:0!important}
+.kso-edit-row{display:grid!important;grid-template-columns:minmax(260px,1fr) 110px 74px;gap:8px!important;align-items:center;padding:7px 0!important;border-bottom:1px solid #f0ece2}
+.kso-edit-row .kso-dish{width:100%;min-width:0;padding:8px 9px;border:1px solid #cfc9bc;border-radius:9px;background:#fff;color:#24322a;font:inherit}
+.kso-edit-row .qty-input{width:100%;box-sizing:border-box}
+.kso-remove{padding:7px 8px!important;background:#f4ecea!important;color:#7b3f35!important}
+.kso-existing-mark{font-size:11px;color:#89918b;text-align:center}
+.kso-buttons{flex-wrap:wrap}
+@media(max-width:760px){
+  .kso-edit-row{grid-template-columns:minmax(0,1fr) 84px 64px}
+  .kso-edit-row .kso-dish{font-size:13px}
+  .kso-edit-row .qty-input{width:84px}
+  .kso-buttons{display:grid!important;grid-template-columns:1fr 1fr;width:100%}
+  .kso-buttons button{width:100%}
+  .kso-buttons [data-kso-add]{grid-column:1/-1}
+}
