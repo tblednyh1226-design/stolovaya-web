@@ -41,18 +41,23 @@
       'public_incoming_transfers','public_kitchen_supply_dishes','public_point_bootstrap',
       'public_point_options','public_transfer_point_options','public_web_login','admin_employee_directory'
     ]);
-    const maxAttempts=safeRetryRpc.has(rpcName)?2:1;
+    const isSafeRead=safeRetryRpc.has(rpcName);
+    const maxAttempts=isSafeRead?2:1;
+    const timeoutMs=isSafeRead?3500:12000;
     let lastError=null;
     for(let attempt=0;attempt<maxAttempts;attempt++){
       let timer=null;
       try{
         const controller=new AbortController();
-        timer=setTimeout(()=>controller.abort(),3500);
+        timer=setTimeout(()=>controller.abort(),timeoutMs);
         const response=await nativeFetch(YANDEX_BRIDGE,{...bridgeInit,signal:controller.signal});
         if(!retryable.has(response.status)||attempt===maxAttempts-1)return response;
       }catch(error){
-        lastError=error;
-        if(attempt===maxAttempts-1)throw error;
+        const aborted=error?.name==='AbortError'||/aborted/i.test(String(error?.message||error||''));
+        lastError=aborted
+          ? new Error(isSafeRead?'Шлюз отвечает медленно. Повторите действие.':'Сохранение не получило ответ от шлюза. Проверьте результат перед повторной отправкой.')
+          : error;
+        if(attempt===maxAttempts-1)throw lastError;
       }finally{
         if(timer)clearTimeout(timer);
       }
