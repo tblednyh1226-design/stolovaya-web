@@ -43,7 +43,7 @@
     ]);
     const isSafeRead=safeRetryRpc.has(rpcName);
     const maxAttempts=isSafeRead?2:1;
-    const timeoutMs=isSafeRead?3500:12000;
+    const timeoutMs=isSafeRead?3500:20000;
     let lastError=null;
     for(let attempt=0;attempt<maxAttempts;attempt++){
       let timer=null;
