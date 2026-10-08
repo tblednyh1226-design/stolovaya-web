@@ -6,6 +6,9 @@
 
   const isKso=d=>d?.doc_type==='movement'&&(/^KSO-/.test(String(d.title||''))||/^MOVE-(BUKHARA|PRAVDA-KITCHEN)-/.test(String(d.title||'')));
   const docKey=d=>historyKey(d);
+  const GROUP_ORDER=['Холодные закуски','Первые блюда','Блюда для завтраков','Вторые блюда','Гарниры','Напитки','Хлеб','Дополнительный ассортимент','Выпечка','Прочее'];
+  const groupRank=g=>{const i=GROUP_ORDER.indexOf(g);return i<0?999:i};
+  const groupName=v=>String(v||'Прочее').trim()||'Прочее';
 
   function originalRows(d){
     return (d.details?.items||[]).map(i=>({
@@ -13,6 +16,7 @@
       itemId:i.itemId,
       dishId:String(i.dishId||''),
       qty:String(i.qty??''),
+      group:groupName(i.group),
       isNew:false
     }));
   }
@@ -24,10 +28,53 @@
 
   function dishOptions(selected){
     const opts=state.ksoDishOptions||[];
-    return '<option value="">Выберите блюдо</option>'+opts.map(o=>
-      '<option value="'+esc(o.id)+'" '+(String(o.id)===String(selected)?'selected':'')+'>'+
-      esc(o.name)+' ['+esc(o.code||'')+']</option>'
-    ).join('');
+    const groups=new Map();
+    for(const o of opts){
+      const g=groupName(o.group);
+      if(!groups.has(g))groups.set(g,[]);
+      groups.get(g).push(o);
+    }
+    const body=[...groups.entries()]
+      .sort((a,b)=>groupRank(a[0])-groupRank(b[0])||a[0].localeCompare(b[0],'ru'))
+      .map(([g,rows])=>{
+        rows.sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'ru'));
+        return '<optgroup label="'+esc(g)+'">'+rows.map(o=>
+          '<option value="'+esc(o.id)+'" '+(String(o.id)===String(selected)?'selected':'')+'>'+
+          esc(o.name)+' ['+esc(o.code||'')+']</option>'
+        ).join('')+'</optgroup>';
+      }).join('');
+    return '<option value="">Выберите блюдо</option>'+body;
+  }
+
+  function rowGroup(dr){
+    if(!dr.dishId)return 'Новая позиция';
+    const opt=(state.ksoDishOptions||[]).find(o=>String(o.id)===String(dr.dishId));
+    return groupName(opt?.group||dr.group);
+  }
+
+  function groupedRows(rows){
+    const groups=new Map();
+    for(const r of rows||[]){
+      const g=rowGroup(r);
+      if(!groups.has(g))groups.set(g,[]);
+      groups.get(g).push(r);
+    }
+    return [...groups.entries()].sort((a,b)=>{
+      if(a[0]==='Новая позиция')return 1;
+      if(b[0]==='Новая позиция')return -1;
+      return groupRank(a[0])-groupRank(b[0])||a[0].localeCompare(b[0],'ru');
+    });
+  }
+
+  function groupItems(items){
+    const groups=new Map();
+    for(const i of items||[]){
+      const g=groupName(i.group);
+      if(!groups.has(g))groups.set(g,[]);
+      groups.get(g).push(i);
+    }
+    return [...groups.entries()]
+      .sort((a,b)=>groupRank(a[0])-groupRank(b[0])||a[0].localeCompare(b[0],'ru'));
   }
 
   const baseDetails=details;
@@ -41,21 +88,29 @@
 
     let rows='';
     if(editing){
-      rows=rowsFor(d).map(dr=>{
-        const remove=dr.isNew
-          ? '<button type="button" class="kso-remove" data-kso-remove="'+esc(dr.rowKey)+'" data-kso-doc="'+esc(hk)+'">Убрать</button>'
-          : '<span class="kso-existing-mark">есть</span>';
-        return '<div class="kso-edit-row">'+
-          '<select class="kso-dish" data-kso-row="'+esc(dr.rowKey)+'" data-kso-doc="'+esc(hk)+'">'+dishOptions(dr.dishId)+'</select>'+
-          '<input class="qty-input" type="number" min="0.001" step="0.001" inputmode="decimal" data-kso-qty-row="'+esc(dr.rowKey)+'" data-kso-doc="'+esc(hk)+'" value="'+esc(dr.qty)+'" placeholder="Кол-во">'+
-          remove+
-        '</div>';
+      const sourceRows=rowsFor(d);
+      rows=groupedRows(sourceRows).map(([group,groupRows])=>{
+        const body=groupRows.map(dr=>{
+          const remove=dr.isNew
+            ? '<button type="button" class="kso-remove" data-kso-remove="'+esc(dr.rowKey)+'" data-kso-doc="'+esc(hk)+'">Убрать</button>'
+            : '<span class="kso-existing-mark">есть</span>';
+          return '<div class="kso-edit-row">'+
+            '<select class="kso-dish" data-kso-row="'+esc(dr.rowKey)+'" data-kso-doc="'+esc(hk)+'">'+dishOptions(dr.dishId)+'</select>'+
+            '<input class="qty-input" type="number" min="0.001" step="0.001" inputmode="decimal" data-kso-qty-row="'+esc(dr.rowKey)+'" data-kso-doc="'+esc(hk)+'" value="'+esc(dr.qty)+'" placeholder="Кол-во">'+
+            remove+
+          '</div>';
+        }).join('');
+        return '<section class="doc-dish-group kso-group"><h4>'+esc(group)+'</h4><div class="items kso-items">'+body+'</div></section>';
       }).join('');
 
       if(!rows)rows='<div class="empty">Добавьте хотя бы одно блюдо.</div>';
     }else{
-      rows=items.map(i=>
-        '<div class="item-row"><span>'+esc(i.dish||'')+'</span><b>'+esc(i.qty??'')+'</b></div>'
+      rows=groupItems(items).map(([group,groupItems])=>
+        '<section class="doc-dish-group kso-group"><h4>'+esc(group)+'</h4><div class="items kso-items">'+
+        groupItems.sort((a,b)=>String(a.dish||'').localeCompare(String(b.dish||''),'ru')).map(i=>
+          '<div class="item-row"><span>'+esc(i.dish||'')+'</span><b>'+esc(i.qty??'')+'</b></div>'
+        ).join('')+
+        '</div></section>'
       ).join('');
     }
 
@@ -73,7 +128,7 @@
         '<div><b>Маршрут</b><br>'+esc(d.from_point||'Кухня')+' → '+esc(d.to_point||'Раздача')+'</div>'+
       '</div>'+
       controls+
-      '<div class="document-items-scroll"><section class="doc-dish-group"><h4>Номенклатура</h4><div class="items kso-items">'+rows+'</div></section></div>'+
+      '<div class="document-items-scroll">'+rows+'</div>'+
     '</div>';
   };
 
@@ -97,7 +152,7 @@
     const hk=docKey(d);
     const rows=state.ksoRows[hk]||(state.ksoRows[hk]=originalRows(d));
     const rowKey='new-'+(++state.ksoNewSeq);
-    rows.push({rowKey,dishId:'',qty:'',isNew:true});
+    rows.push({rowKey,dishId:'',qty:'',group:'Прочее',isNew:true});
     render();
   }
 
@@ -177,7 +232,7 @@
     document.querySelectorAll('[data-kso-row]').forEach(x=>x.onchange=()=>{
       const rows=state.ksoRows[x.dataset.ksoDoc]||[];
       const r=rows.find(v=>v.rowKey===x.dataset.ksoRow);
-      if(r)r.dishId=x.value;
+      if(r){r.dishId=x.value;const opt=(state.ksoDishOptions||[]).find(o=>String(o.id)===String(x.value));r.group=groupName(opt?.group);render();}
     });
 
     document.querySelectorAll('[data-kso-qty-row]').forEach(x=>x.oninput=()=>{
