@@ -129,7 +129,7 @@
         '<div><b>Маршрут</b><br>'+esc(d.from_point||'Кухня')+' → '+esc(d.to_point||'Раздача')+'</div>'+
       '</div>'+
       controls+feedbackHtml+
-      '<div class="document-items-scroll">'+rows+'</div>'+bottomControls+
+      '<div class="document-items-scroll">'+rows+'</div>'+bottomControls+(editing?feedbackHtml:'')+
     '</div>';
   };
 
