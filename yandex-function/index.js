@@ -115,10 +115,7 @@ module.exports.handler = async function handler(event, context) {
     const remaining = typeof context?.getRemainingTimeInMillis === 'function'
       ? context.getRemainingTimeInMillis()
       : 10000;
-    // Editing a past kitchen transfer recalculates linked reports and can exceed 2.5 seconds.
-    // Respect function execution time, but give this authorized write a longer upstream window.
-    const upstreamLimit = rpc === 'admin_save_kitchen_supply_document' ? 20000 : 2500;
-    const upstreamTimeout = Math.max(1200, Math.min(upstreamLimit, remaining - 800));
+    const upstreamTimeout = Math.max(1200, Math.min(2500, remaining - 800));
     const started = Date.now();
 
     try {

@@ -3,7 +3,6 @@
   state.ksoDishOptions=state.ksoDishOptions||null;
   state.ksoRows=state.ksoRows||{};
   state.ksoNewSeq=state.ksoNewSeq||0;
-  state.ksoFeedback=state.ksoFeedback||{};
 
   const isKso=d=>d?.doc_type==='movement'&&(/^KSO-/.test(String(d.title||''))||/^MOVE-(BUKHARA|PRAVDA-KITCHEN)-/.test(String(d.title||'')));
   const docKey=d=>historyKey(d);
@@ -92,10 +91,12 @@
       const sourceRows=rowsFor(d);
       rows=groupedRows(sourceRows).map(([group,groupRows])=>{
         const body=groupRows.map(dr=>{
-          const remove='<button type="button" class="kso-remove" data-kso-remove="'+esc(dr.rowKey)+'" data-kso-doc="'+esc(hk)+'" '+(saving?'disabled':'')+'>Убрать</button>';
+          const remove=dr.isNew
+            ? '<button type="button" class="kso-remove" data-kso-remove="'+esc(dr.rowKey)+'" data-kso-doc="'+esc(hk)+'">Убрать</button>'
+            : '<span class="kso-existing-mark">есть</span>';
           return '<div class="kso-edit-row">'+
             '<select class="kso-dish" data-kso-row="'+esc(dr.rowKey)+'" data-kso-doc="'+esc(hk)+'">'+dishOptions(dr.dishId)+'</select>'+
-            '<input class="qty-input" type="text" inputmode="decimal" autocomplete="off" data-kso-qty-row="'+esc(dr.rowKey)+'" data-kso-doc="'+esc(hk)+'" value="'+esc(dr.qty)+'" placeholder="Кол-во">'+
+            '<input class="qty-input" type="number" min="0.001" step="0.001" inputmode="decimal" data-kso-qty-row="'+esc(dr.rowKey)+'" data-kso-doc="'+esc(hk)+'" value="'+esc(dr.qty)+'" placeholder="Кол-во">'+
             remove+
           '</div>';
         }).join('');
@@ -113,23 +114,21 @@
       ).join('');
     }
 
-    const saveButton='<button class="primary" type="button" data-kso-edit="'+esc(hk)+'" '+(saving?'disabled':'')+'>'+(saving?'Сохраняем…':editing?'Сохранить':'Редактировать')+'</button>';
     const controls='<div class="edit-toolbar"><div class="edit-buttons kso-buttons">'+
       (editing?'<button class="secondary" type="button" data-kso-add="'+esc(hk)+'" '+(saving?'disabled':'')+'>+ Добавить блюдо</button>':'')+
-      saveButton+
+      '<button class="primary" type="button" data-kso-edit="'+esc(hk)+'" '+(saving?'disabled':'')+'>'+
+        (saving?'Сохраняем…':editing?'Сохранить':'Редактировать')+
+      '</button>'+
       (editing?'<button class="secondary" type="button" data-kso-cancel="'+esc(hk)+'" '+(saving?'disabled':'')+'>Отмена</button>':'')+
     '</div></div>';
-    const feedback=state.ksoFeedback[hk];
-    const feedbackHtml=feedback?'<p class="kso-feedback" role="status" style="margin:8px 0;padding:10px;border-radius:8px;background:'+(feedback.error?'#fff1ef':'#edf6ee')+';color:'+(feedback.error?'#a12d20':'#275d3b')+'">'+esc(feedback.text)+'</p>':'';
-    const bottomControls=editing?'<div class="edit-toolbar kso-bottom-toolbar"><div class="edit-buttons kso-buttons">'+saveButton+'</div></div>':'';
 
     return '<div class="details">'+
       '<div class="details-grid">'+
         '<div><b>Тип</b><br>Получить с кухни</div>'+
         '<div><b>Маршрут</b><br>'+esc(d.from_point||'Кухня')+' → '+esc(d.to_point||'Раздача')+'</div>'+
       '</div>'+
-      controls+feedbackHtml+
-      '<div class="document-items-scroll">'+rows+'</div>'+bottomControls+(editing?feedbackHtml:'')+
+      controls+
+      '<div class="document-items-scroll">'+rows+'</div>'+
     '</div>';
   };
 
@@ -141,7 +140,6 @@
       const hk=docKey(d);
       state.ksoRows[hk]=originalRows(d);
       state.editing.add(hk);
-      delete state.ksoFeedback[hk];
       state.message='';
       render();
     }catch(e){
@@ -160,89 +158,47 @@
 
   function removeRow(hk,rowKey){
     const rows=state.ksoRows[hk]||[];
-    state.ksoRows[hk]=rows.filter(r=>r.rowKey!==rowKey);
-    delete state.ksoFeedback[hk];
+    state.ksoRows[hk]=rows.filter(r=>r.rowKey!==rowKey || !r.isNew);
     render();
   }
 
-  // После сетевого сбоя проверяем, дошло ли сохранение до базы. Автоматически повторно не пишем.
-  function sameRows(d,items){
-    const actual=d?.details?.items||[];
-    if(actual.length!==items.length)return false;
-    const map=new Map(actual.map(x=>[String(x.dishId),Number(x.qty)]));
-    return items.every(x=>map.has(String(x.dishId))&&Math.abs(map.get(String(x.dishId))-x.quantity)<0.000001);
-  }
-  async function confirmSaved(d,items){
-    for(let attempt=0;attempt<3;attempt++){
-      try{
-        const data=await rpc('admin_document_journal',{p_token:state.token,p_from:d.business_date,p_to:d.business_date,p_type:'movement',p_point_code:null});
-        const current=(data?.documents||[]).find(x=>String(x.doc_id)===String(d.doc_id));
-        if(sameRows(current,items))return true;
-      }catch(e){ /* Невозможность проверки не равна отказу записи. */ }
-      if(attempt<2)await new Promise(r=>setTimeout(r,1200));
-    }
-    return false;
-  }
   async function save(d){
     const hk=docKey(d);
-    if(state.saving.has(hk))return;
     const rows=state.ksoRows[hk]||[];
-    let items;
+    state.saving.add(hk);
+    state.message='';
+    render();
+
     try{
       if(!rows.length)throw new Error('Добавьте хотя бы одно блюдо');
+
       const seen=new Set();
-      items=rows.map(r=>{
-        if(!r.dishId)throw new Error('Выберите блюдо во всех строках');
-        const dishName=(state.ksoDishOptions||[]).find(o=>String(o.id)===String(r.dishId))?.name||'Выбранное блюдо';
-        const qty=Number(String(r.qty).trim().replace(',','.'));
-        if(!Number.isFinite(qty)||qty<=0)throw new Error('Проверьте количество: '+dishName+'. Для удаления позиции нажмите «Убрать»');
-        if(seen.has(String(r.dishId)))throw new Error('Блюдо «'+dishName+'» указано дважды. Объедините количества в одну строку');
+      const items=rows.map(r=>{
+        if(!r.dishId)throw new Error('В новой строке выберите блюдо');
+        const qty=Number(String(r.qty).replace(',','.'));
+        if(!Number.isFinite(qty)||qty<=0)throw new Error('Количество должно быть больше нуля');
+        if(seen.has(String(r.dishId)))throw new Error('Одно и то же блюдо нельзя добавлять двумя строками');
         seen.add(String(r.dishId));
         return {dishId:r.dishId,quantity:qty};
       });
-    }catch(e){
-      state.ksoFeedback[hk]={error:true,text:e.message||'Проверьте данные'};
-      render();
-      return;
-    }
-    if(sameRows(d,items)){
-      state.ksoFeedback[hk]={error:false,text:'Изменений по сравнению с текущим документом не найдено. Проверьте количество или номенклатуру.'};
-      render();
-      return;
-    }
-    state.saving.add(hk);
-    state.ksoFeedback[hk]={error:false,text:'Сохраняем '+d.business_date+'. Не закрывайте страницу до подтверждения.'};
-    render();
-    let confirmed=false, rpcError=null;
-    try{
-      const result=await rpc('admin_save_kitchen_supply_document',{
+
+      await rpc('admin_save_kitchen_supply_document',{
         p_token:state.token,
         p_movement_id:d.doc_id,
         p_items:items,
         p_actor:state.actor||'Администратор'
       });
-      if(result?.ok!==true)throw new Error('Сервер не подтвердил сохранение');
-      confirmed=true;
-    }catch(e){
-      rpcError=e;
-      confirmed=await confirmSaved(d,items);
-    }
-    if(confirmed){
+
       state.editing.delete(hk);
       delete state.ksoRows[hk];
-      state.ksoFeedback[hk]={error:false,text:'Изменения сохранены в базе. Проверьте состав документа.'};
-      try{await load()}catch(e){ /* Подтверждённое сохранение не отменяем из-за ошибки повторного чтения. */ }
-      state.message='Изменения перемещения сохранены.';
-    }else{
-      state.ksoFeedback[hk]={
-        error:true,
-        text:rpcError
-          ? ('Сохранение не подтверждено: '+(rpcError.message||String(rpcError))+'. Правки остались в форме. Проверьте журнал перед повторной отправкой.')
-          : 'Не удалось подтвердить сохранение. Правки остались в форме.'
-      };
+      await load();
+      state.message='Документ «Получить с кухни» обновлён. Связанные документы пересчитаны';
+    }catch(e){
+      state.message=e.message;
+    }finally{
+      state.saving.delete(hk);
+      render();
     }
-    state.saving.delete(hk);
-    render();
   }
 
   async function sendToIiko(d){
@@ -319,7 +275,6 @@
       const hk=docKey(d);
       state.editing.delete(hk);
       delete state.ksoRows[hk];
-      delete state.ksoFeedback[hk];
       state.message='';
       render();
     });
