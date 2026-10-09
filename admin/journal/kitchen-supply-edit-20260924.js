@@ -95,7 +95,7 @@
           const remove='<button type="button" class="kso-remove" data-kso-remove="'+esc(dr.rowKey)+'" data-kso-doc="'+esc(hk)+'" '+(saving?'disabled':'')+'>Убрать</button>';
           return '<div class="kso-edit-row">'+
             '<select class="kso-dish" data-kso-row="'+esc(dr.rowKey)+'" data-kso-doc="'+esc(hk)+'">'+dishOptions(dr.dishId)+'</select>'+
-            '<input class="qty-input" type="number" min="0.001" step="0.001" inputmode="decimal" data-kso-qty-row="'+esc(dr.rowKey)+'" data-kso-doc="'+esc(hk)+'" value="'+esc(dr.qty)+'" placeholder="Кол-во">'+
+            '<input class="qty-input" type="text" inputmode="decimal" autocomplete="off" data-kso-qty-row="'+esc(dr.rowKey)+'" data-kso-doc="'+esc(hk)+'" value="'+esc(dr.qty)+'" placeholder="Кол-во">'+
             remove+
           '</div>';
         }).join('');
@@ -193,9 +193,10 @@
       const seen=new Set();
       items=rows.map(r=>{
         if(!r.dishId)throw new Error('Выберите блюдо во всех строках');
+        const dishName=(state.ksoDishOptions||[]).find(o=>String(o.id)===String(r.dishId))?.name||'Выбранное блюдо';
         const qty=Number(String(r.qty).trim().replace(',','.'));
-        if(!Number.isFinite(qty)||qty<=0)throw new Error('Укажите количество больше нуля. Для удаления позиции нажмите «Убрать»');
-        if(seen.has(String(r.dishId)))throw new Error('Одно блюдо указано дважды. Объедините количества в одну строку');
+        if(!Number.isFinite(qty)||qty<=0)throw new Error('Проверьте количество: '+dishName+'. Для удаления позиции нажмите «Убрать»');
+        if(seen.has(String(r.dishId)))throw new Error('Блюдо «'+dishName+'» указано дважды. Объедините количества в одну строку');
         seen.add(String(r.dishId));
         return {dishId:r.dishId,quantity:qty};
       });
@@ -204,8 +205,13 @@
       render();
       return;
     }
+    if(sameRows(d,items)){
+      state.ksoFeedback[hk]={error:false,text:'Изменений по сравнению с текущим документом не найдено. Проверьте количество или номенклатуру.'};
+      render();
+      return;
+    }
     state.saving.add(hk);
-    state.ksoFeedback[hk]={error:false,text:'Сохраняем изменения. Не закрывайте страницу до подтверждения.'};
+    state.ksoFeedback[hk]={error:false,text:'Сохраняем '+d.business_date+'. Не закрывайте страницу до подтверждения.'};
     render();
     let confirmed=false, rpcError=null;
     try{
