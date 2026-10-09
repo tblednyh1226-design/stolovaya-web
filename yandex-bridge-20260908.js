@@ -43,7 +43,9 @@
     ]);
     const isSafeRead=safeRetryRpc.has(rpcName);
     const maxAttempts=isSafeRead?2:1;
-    const timeoutMs=isSafeRead?3500:20000;
+    // Пакетное редактирование ПК→ПР / БК→БР пересчитывает несколько документов.
+    // Не обрываем ожидание подтверждения в середине записи.
+    const timeoutMs=isSafeRead?3500:(rpcName==='admin_save_kitchen_supply_document'?60000:20000);
     let lastError=null;
     for(let attempt=0;attempt<maxAttempts;attempt++){
       let timer=null;
