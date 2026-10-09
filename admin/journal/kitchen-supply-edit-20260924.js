@@ -201,9 +201,62 @@
     }
   }
 
+  async function sendToIiko(d){
+    if(state.editing.has(docKey(d))){
+      state.message='Сначала сохраните изменения документа, затем отправляйте его в iiko';
+      render();
+      return;
+    }
+    if(!confirm('Создать это перемещение в iiko непроведённым?\n\nПосле отправки документ останется непроведённым до ручного проведения в iiko.'))return;
+
+    state.busy=true;
+    state.message='Отправляем перемещение в iiko…';
+    render();
+
+    try{
+      const queued=await rpc('admin_send_kitchen_transfer_to_iiko',{
+        p_token:state.token,
+        p_movement_id:d.doc_id
+      });
+
+      if(queued?.alreadyExported){
+        state.message='Перемещение уже создано в iiko: '+(queued.number||'номер не указан')+'. Документ непроведённый.';
+        return;
+      }
+
+      for(let attempt=0;attempt<6;attempt++){
+        await new Promise(r=>setTimeout(r,1500));
+        const s=await rpc('admin_kitchen_transfer_iiko_status',{
+          p_token:state.token,
+          p_movement_id:d.doc_id
+        });
+
+        if(s?.status==='exported'){
+          state.message='Перемещение создано в iiko непроведённым'+(s.iikoDocumentNumber?' · № '+s.iikoDocumentNumber:'')+'.';
+          return;
+        }
+        if(s?.status==='export_error'){
+          throw new Error(s.exportError||'iiko не приняла перемещение');
+        }
+      }
+
+      state.message='Запрос отправлен в iiko. iiko отвечает дольше обычного, статус можно проверить повторно через журнал.';
+    }catch(e){
+      state.message=e.message||'Не удалось создать перемещение в iiko';
+    }finally{
+      state.busy=false;
+      render();
+    }
+  }
+
   const baseBind=bind;
   bind=function(){
     baseBind();
+
+    document.querySelectorAll('[data-kso-iiko-send]').forEach(b=>b.onclick=()=>{
+      const d=(state.data?.documents||[]).find(x=>isKso(x)&&String(x.doc_id)===String(b.dataset.ksoIikoSend));
+      if(d)sendToIiko(d);
+    });
 
     document.querySelectorAll('[data-kso-edit]').forEach(b=>b.onclick=()=>{
       const d=(state.data?.documents||[]).find(x=>docKey(x)===b.dataset.ksoEdit);
