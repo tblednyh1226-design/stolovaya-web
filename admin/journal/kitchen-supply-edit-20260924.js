@@ -172,15 +172,40 @@
     try{
       if(!rows.length)throw new Error('Добавьте хотя бы одно блюдо');
 
-      const seen=new Set();
-      const items=rows.map(r=>{
+      // Повтор одной номенклатуры: объединяем количества только после согласия пользователя.
+      // Остальное сохранение и обновление связанных документов остаются прежними.
+      const seen=new Map();
+      const items=[];
+      const duplicateIds=new Set();
+      for(const r of rows){
         if(!r.dishId)throw new Error('В новой строке выберите блюдо');
         const qty=Number(String(r.qty).replace(',','.'));
         if(!Number.isFinite(qty)||qty<=0)throw new Error('Количество должно быть больше нуля');
-        if(seen.has(String(r.dishId)))throw new Error('Одно и то же блюдо нельзя добавлять двумя строками');
-        seen.add(String(r.dishId));
-        return {dishId:r.dishId,quantity:qty};
-      });
+        const key=String(r.dishId);
+        if(seen.has(key)){
+          seen.get(key).quantity=Number((seen.get(key).quantity+qty).toFixed(3));
+          duplicateIds.add(key);
+        }else{
+          const item={dishId:r.dishId,quantity:qty};
+          seen.set(key,item);
+          items.push(item);
+        }
+      }
+      if(duplicateIds.size){
+        const lines=[...duplicateIds].map(id=>{
+          const d=(state.ksoDishOptions||[]).find(o=>String(o.id)===id);
+          return '• '+(d?.name||'Блюдо')+(d?.code?' ['+d.code+']':'')+': '+seen.get(id).quantity+' порций';
+        });
+        const approved=confirm(
+          'Одно блюдо выбрано несколько раз. В iiko оно должно быть одной строкой.\n\n'+
+          lines.join('\n')+
+          '\n\nОбъединить количества и сохранить перемещение?'
+        );
+        if(!approved){
+          state.message='Сохранение отменено. Введённые данные остались в форме.';
+          return;
+        }
+      }
 
       await rpc('admin_save_kitchen_supply_document',{
         p_token:state.token,
