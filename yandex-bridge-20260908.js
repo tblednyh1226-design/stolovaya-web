@@ -2,6 +2,10 @@
   const SUPABASE_RPC='https://rgluzdxikpagugpmusbp.supabase.co/rest/v1/rpc/';
   const YANDEX_BRIDGE='https://functions.yandexcloud.net/d4e3fd70tje1bpctpfbs';
   const nativeFetch=window.fetch.bind(window);
+  // Set false to restore the original gateway-only behavior.
+  const adminFallbackEnabled=true;
+  const adminPage=/\\/admin(?:\\/|$)/i.test(location.pathname);
+  const adminFallbackReads=new Set(['public_admin_web_login','public_admin_session_from_buffet_token','admin_employee_directory','public_global_chat_unread','public_daily_items_v2','public_employee_meal_summary','public_freezer_items','public_home','public_incoming_transfers','public_kitchen_supply_dishes','public_point_bootstrap','public_point_options','public_transfer_point_options']);
 
   function getUrl(input){
     if(typeof input==='string')return input;
@@ -42,6 +46,8 @@
       'public_point_options','public_transfer_point_options','public_web_login','admin_employee_directory'
     ]);
     const isSafeRead=safeRetryRpc.has(rpcName);
+    const allowDirect=adminFallbackEnabled&&adminPage&&adminFallbackReads.has(rpcName);
+    const direct=()=>nativeFetch(input,{...init,cache:'no-store'});
     const maxAttempts=isSafeRead?2:1;
     const timeoutMs=isSafeRead?3500:20000;
     let lastError=null;
@@ -51,12 +57,14 @@
         const controller=new AbortController();
         timer=setTimeout(()=>controller.abort(),timeoutMs);
         const response=await nativeFetch(YANDEX_BRIDGE,{...bridgeInit,signal:controller.signal});
+        if(allowDirect&&[502,503,504].includes(response.status))return direct();
         if(!retryable.has(response.status)||attempt===maxAttempts-1)return response;
       }catch(error){
         const aborted=error?.name==='AbortError'||/aborted/i.test(String(error?.message||error||''));
         lastError=aborted
           ? new Error(isSafeRead?'Шлюз отвечает медленно. Повторите действие.':'Сохранение не получило ответ от шлюза. Проверьте результат перед повторной отправкой.')
           : error;
+        if(allowDirect){try{return await direct();}catch(directError){throw directError;}}
         if(attempt===maxAttempts-1)throw lastError;
       }finally{
         if(timer)clearTimeout(timer);
