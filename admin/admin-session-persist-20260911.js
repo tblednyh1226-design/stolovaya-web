@@ -1,5 +1,15 @@
 // Keep admin authorization and selected FIO across navigation/reloads until explicit logout.
 (function(){
+  // One-time reset of legacy admin sessions after switching to direct Supabase.
+  // Do not touch buffet login tokens or business data.
+  const RESET_KEY='stolovaya:admin-direct-session-reset-20261011';
+  if(localStorage.getItem(RESET_KEY)!=='1'){
+    for(const key of ['stolovaya:admin','stolovaya:admin-employee']){
+      localStorage.removeItem(key);
+      sessionStorage.removeItem(key);
+    }
+    localStorage.setItem(RESET_KEY,'1');
+  }
   const TOKEN='stolovaya:admin';
   const EMP='stolovaya:admin-employee';
   const lt=localStorage.getItem(TOKEN); if(lt&&!sessionStorage.getItem(TOKEN))sessionStorage.setItem(TOKEN,lt);
