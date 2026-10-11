@@ -15,6 +15,10 @@
 
   window.fetch=async function(input,init={}){
     const url=getUrl(input);
+    // The buffet /live/ interface uses Supabase directly; admin gateway behavior is unchanged.
+    if(/\/live(?:\/|$)/i.test(location.pathname) && url.startsWith(SUPABASE_RPC)){
+      return nativeFetch(input,init);
+    }
     if(!url.startsWith(SUPABASE_RPC)){
       return nativeFetch(input,init);
     }
