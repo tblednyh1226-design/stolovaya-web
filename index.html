@@ -16,6 +16,21 @@
   <main id="app" class="app"><section class="loading-card">Загрузка…</section></main>
   <a class="help-entry" href="instruction.html?v=20260908-1002">? Как работать</a>
   <a class="admin-entry" href="admin/">Администратор</a>
+  <script>
+  window.addEventListener('error', function(event) {
+    var msg = event.message || 'JavaScript error';
+    var file = event.filename || 'unknown';
+    var line = event.lineno || 0;
+    var column = event.colno || 0;
+    var target = document.getElementById('app');
+    if (target && (/Invalid regular expression flags/i.test(msg) || /SyntaxError/i.test(msg))) {
+      target.innerHTML = '<section class="loading-card" style="padding:20px;overflow-wrap:anywhere"><h2>Ошибка загрузки приложения</h2><p>' +
+        String(msg).replace(/&/g,'&amp;').replace(/</g,'&lt;') +
+        '</p><p style="font-size:13px">Файл: ' + String(file).replace(/&/g,'&amp;').replace(/</g,'&lt;') +
+        '<br>Строка: ' + line + ', столбец: ' + column + '</p></section>';
+    }
+  }, true);
+  </script>
   <script src="app.js?v=20260908-1002"></script>
   <script src="testing-date.js?v=20260908-1002"></script>
 </body>
