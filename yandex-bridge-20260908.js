@@ -4,6 +4,8 @@
   const nativeFetch=window.fetch.bind(window);
   // Set false to restore the original gateway-only behavior.
   const adminFallbackEnabled=true;
+  // Rollback switch: set to false to restore the previous admin gateway route.
+  const adminDirectEnabled=true;
   const adminPage=/\/admin(?:\/|$)/i.test(location.pathname);
   const adminFallbackReads=new Set(['public_admin_web_login','public_admin_session_from_buffet_token','admin_employee_directory','public_global_chat_unread','public_daily_items_v2','public_employee_meal_summary','public_freezer_items','public_home','public_incoming_transfers','public_kitchen_supply_dishes','public_point_bootstrap','public_point_options','public_transfer_point_options','admin_main_operational_report','admin_main_operational_report_range','admin_document_journal','admin_document_history','admin_kitchen_transfer_iiko_statuses']);
 
@@ -15,8 +17,8 @@
 
   window.fetch=async function(input,init={}){
     const url=getUrl(input);
-    // The buffet /live/ interface uses Supabase directly; admin gateway behavior is unchanged.
-    if(/\/live(?:\/|$)/i.test(location.pathname) && url.startsWith(SUPABASE_RPC)){
+    // Live and admin use direct Supabase RPC; gateway logic below remains for rollback.
+    if((/\/live(?:\/|$)/i.test(location.pathname) || (adminDirectEnabled && adminPage)) && url.startsWith(SUPABASE_RPC)){
       return nativeFetch(input,init);
     }
     if(!url.startsWith(SUPABASE_RPC)){
