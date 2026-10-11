@@ -4,7 +4,7 @@
   const nativeFetch=window.fetch.bind(window);
   // Set false to restore the original gateway-only behavior.
   const adminFallbackEnabled=true;
-  const adminPage=/\\/admin(?:\\/|$)/i.test(location.pathname);
+  const adminPage=/\/admin(?:\/|$)/i.test(location.pathname);
   const adminFallbackReads=new Set(['public_admin_web_login','public_admin_session_from_buffet_token','admin_employee_directory','public_global_chat_unread','public_daily_items_v2','public_employee_meal_summary','public_freezer_items','public_home','public_incoming_transfers','public_kitchen_supply_dishes','public_point_bootstrap','public_point_options','public_transfer_point_options','admin_main_operational_report','admin_main_operational_report_range','admin_document_journal','admin_document_history','admin_kitchen_transfer_iiko_statuses']);
 
   function getUrl(input){
