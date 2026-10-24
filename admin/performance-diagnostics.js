@@ -1,17 +1,21 @@
 /* Admin performance diagnostics: no tokens, request bodies, or personal data are recorded. */
 (function(){
   if(window.__stolovayaDiagnostics)return;
-  const KEY='stolovaya:admin-performance-v1',MAX=250;
+  const KEY='stolovaya:admin-performance-v1',QUEUE_KEY='stolovaya:admin-pending-v2',MAX=250;
   const section=location.pathname.includes('/journal')?'journal':location.pathname.includes('/report')?'report':'admin';
   const started=performance.now();
-  const pending=[];
+  let pending=[];
+  try{pending=JSON.parse(localStorage.getItem(QUEUE_KEY)||'[]');if(!Array.isArray(pending))pending=[]}catch(e){pending=[]}
   let apiHeaders=null;
   let sending=false;
   const read=()=>{try{return JSON.parse(localStorage.getItem(KEY)||'[]')}catch{return []}};
   function log(event,detail={}){
     const entry={at:new Date().toISOString(),section,event,elapsedMs:Math.round(performance.now()-started),...detail};
     try{const a=read();a.push(entry);localStorage.setItem(KEY,JSON.stringify(a.slice(-MAX)))}catch(e){}
-    if(['request_end','request_error','page_start','script_error','long_task'].includes(event))pending.push(entry);
+    if(['request_end','request_error','page_start','script_error','long_task'].includes(event)){
+      pending.push(entry);pending=pending.slice(-100);
+      try{localStorage.setItem(QUEUE_KEY,JSON.stringify(pending))}catch(e){}
+    }
     if(event==='request_end'&&detail.durationMs>3000)console.warn('[Столовая: медленный запрос]',entry);
   }
   window.__stolovayaDiagnostics={log,read};
@@ -35,8 +39,13 @@
     const batch=pending.splice(0,20);
     try{
       const r=await originalFetch('https://rgluzdxikpagugpmusbp.supabase.co/rest/v1/rpc/admin_performance_record',{method:'POST',headers:apiHeaders,body:JSON.stringify({p_token:token,p_events:batch}),signal:AbortSignal.timeout(7000)});
-      if(!r.ok)throw new Error('upload');
-    }catch(e){pending.unshift(...batch);if(pending.length>100)pending.splice(100)}
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      try{localStorage.setItem(QUEUE_KEY,JSON.stringify(pending))}catch(e){}
+      button.textContent='Диагностика ✓';
+    }catch(e){pending=batch.concat(pending).slice(-100);
+      try{localStorage.setItem(QUEUE_KEY,JSON.stringify(pending))}catch(err){}
+      button.textContent='Диагностика !';
+      console.warn('[Столовая] Не удалось отправить логи:',String(e.message||e));}
     finally{sending=false}
   },10000);
   window.addEventListener('error',e=>log('script_error',{message:String(e.message||'error').slice(0,160)}));
