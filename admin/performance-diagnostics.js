@@ -55,6 +55,18 @@
   try{new PerformanceObserver(list=>{for(const e of list.getEntries())if(e.duration>=100)log('long_task',{durationMs:Math.round(e.duration)})}).observe({entryTypes:['longtask']})}catch(e){}
   const button=document.createElement('button');button.textContent='Диагностика';button.type='button';
   button.style.cssText='position:fixed;bottom:12px;right:12px;z-index:99999;background:#234d3a;color:white;border:0;border-radius:10px;padding:9px 12px;font:600 12px sans-serif;box-shadow:0 2px 10px #0003';
-  button.onclick=()=>{log('logs_export');const blob=new Blob([JSON.stringify({exportedAt:new Date().toISOString(),entries:read()},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='stolovaya-admin-performance-'+new Date().toISOString().slice(0,10)+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
+  button.onclick=()=>{
+    const existing=document.getElementById('stolovaya-diag-panel');
+    if(existing){existing.remove();return}
+    const panel=document.createElement('div');
+    panel.id='stolovaya-diag-panel';
+    panel.style.cssText='position:fixed;z-index:100000;bottom:65px;left:10px;right:10px;max-width:550px;max-height:65vh;overflow:auto;margin:auto;padding:15px;background:white;color:#253b32;border:1px solid #ddd;border-radius:12px;box-shadow:0 6px 20px #0004;font:14px sans-serif';
+    const h=document.createElement('strong');h.textContent='Диагностика';panel.appendChild(h);
+    const p=document.createElement('p');p.style.overflowWrap='anywhere';p.textContent='Отправка: '+(lastUploadError||'ошибок пока нет')+'. Очередь: '+pending.length;panel.appendChild(p);
+    const events=read().filter(x=>x.event==='request_end'||x.event==='request_error').slice(-30).sort((x,y)=>(y.durationMs||0)-(x.durationMs||0)).slice(0,8);
+    for(const e of events){const line=document.createElement('p');line.textContent=(e.endpoint||'other')+' — '+(e.durationMs||0)+' мс'+(e.status?' HTTP '+e.status:'')+(e.error?' '+e.error:'');panel.appendChild(line)}
+    const close=document.createElement('button');close.textContent='Закрыть';close.onclick=()=>panel.remove();panel.appendChild(close);
+    document.body.appendChild(panel);
+  };
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{document.body.appendChild(button);log('dom_ready')},{once:true});else document.body.appendChild(button);
 })();
