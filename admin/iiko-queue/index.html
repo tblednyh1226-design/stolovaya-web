@@ -46,7 +46,7 @@ function render(){
     }).join('');
   const remaining=rows.length-visible;
   more.style.display=remaining>0?'inline-block':'none';
-  more.textContent=remaining>0?'Показать ещё ('+remaining+')':'';
+  more.textContent=remaining>0?'Показать ещё ('+remaining+')':'';if(existing.length&&mode==='all'){list.insertAdjacentHTML('beforeend','<h2>Найдены в iiko — требуется сверка ('+existing.length+')</h2>'+existing.map(row=>'<article><b>'+escapeHtml(row.date)+' · '+escapeHtml(row.point)+'</b><p>'+escapeHtml(row.type)+' · № '+escapeHtml(row.number)+'</p><p class="warn">В iiko документ существует, но суммы или количества расходятся. Повторная выгрузка заблокирована.</p><a href="../journal/?date='+encodeURIComponent(row.date)+'&type='+encodeURIComponent(row.kind)+'&id='+encodeURIComponent(row.id)+'">Открыть документ →</a></article>').join(''));}
 }
 async function rpc(name,args,timeoutMs=12000){
   const controller=new AbortController();
