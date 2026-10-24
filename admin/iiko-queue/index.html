@@ -42,7 +42,7 @@ function render(){
       return '<article><b>'+escapeHtml(row.date)+' · '+escapeHtml(row.point)+'</b>'+
         '<p class="cardline">'+escapeHtml(row.type)+(row.number?' · № '+escapeHtml(row.number):'')+'</p>'+
         '<p class="cardline">Статус: '+escapeHtml(row.foundInIiko?'Найден в iiko — есть расхождения':description(row))+'</p>'+
-        (row.error?'<p class="error cardline">'+escapeHtml(row.error)+'</p>':'')+button+'</article>';
+        (row.error?'<p class="error cardline">'+escapeHtml(row.error)+'</p>':'')+'<p><a href="../journal/?date='+encodeURIComponent(row.date)+'&type='+encodeURIComponent(row.kind)+'&id='+encodeURIComponent(row.id)+'">Открыть документ →</a></p>'+button+'</article>';
     }).join('');
   const remaining=rows.length-visible;
   more.style.display=remaining>0?'inline-block':'none';
