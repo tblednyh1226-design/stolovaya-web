@@ -1,9 +1,125 @@
-<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate"><meta http-equiv="Pragma" content="no-cache"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Выгрузка перемещений в iiko</title><style>body{font:16px system-ui;background:#f5f5f0;color:#25392e;margin:0}main{max-width:850px;margin:20px auto;padding:16px}article{background:white;border:1px solid #ddd;border-radius:12px;padding:16px;margin:12px 0}button{background:#245b42;color:white;border:0;border-radius:8px;padding:10px 15px;font-weight:600}button:disabled{opacity:.5}small{color:#657267}a{color:#245b42}.error{color:#9a332e}</style></head><body><main><a href="../">← Администратор</a><h1>Очередь выгрузки в iiko</h1><p>Документы, ожидающие отправки в iiko. Выгрузка запускается отдельно для каждого документа по кнопке администратора.</p><button id="refresh">Обновить список</button><p id="message"></p><div id="list">Загрузка…</div></main><script>
-const API='https://rgluzdxikpagugpmusbp.supabase.co/rest/v1/rpc',KEY='sb_publishable_rcvNssgN4_dPnVUpjU0bjQ_1cEWsA52';
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate"><meta http-equiv="Pragma" content="no-cache"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Очередь документов в iiko</title><style>body{font:16px system-ui;background:#f5f5f0;color:#25392e;margin:0}main{max-width:850px;margin:20px auto;padding:16px}article{background:white;border:1px solid #ddd;border-radius:12px;padding:16px;margin:12px 0}button{background:#245b42;color:white;border:0;border-radius:8px;padding:10px 15px;font-weight:600}button:disabled{opacity:.5}small{color:#657267}a{color:#245b42}.error{color:#9a332e} .meta{color:#657267;font-size:14px}.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0}.toolbar select{font:inherit;padding:8px;border-radius:7px;max-width:100%}.muted{color:#657267}.warn{color:#94481e}.action{margin-top:8px}.cardline{margin:6px 0;overflow-wrap:anywhere}#message{min-height:1.3em;overflow-wrap:anywhere}article{overflow-wrap:anywhere}</style></head><body><main><a href="../">← Администратор</a><h1>Очередь выгрузки в iiko</h1><p>Документы, ожидающие отправки в iiko. Выгрузка запускается отдельно для каждого документа по кнопке администратора.</p><div class="toolbar"><button id="refresh" type="button">Обновить список</button><label>Показать <select id="filter"><option value="all">Все документы</option><option value="pending">Ожидают выгрузки</option><option value="error">С ошибкой</option></select></label></div><p id="message" role="status" aria-live="polite"></p><div id="list" aria-live="polite">Загрузка…</div><button id="more" type="button" style="display:none">Показать ещё</button></main><script>
+const API='https://rgluzdxikpagugpmusbp.supabase.co/rest/v1/rpc';
+const KEY='sb_publishable_rcvNssgN4_dPnVUpjU0bjQ_1cEWsA52';
 const token=sessionStorage.getItem('stolovaya:admin')||localStorage.getItem('stolovaya:admin');
-const list=document.getElementById('list'),message=document.getElementById('message');
-const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]));
-async function rpc(name,args){const r=await fetch(API+'/'+name,{method:'POST',headers:{apikey:KEY,'Content-Type':'application/json'},body:JSON.stringify(args)});const d=await r.json().catch(()=>null);if(!r.ok)throw Error(d?.message||'HTTP '+r.status);return d}
-async function load(){if(!token){location.href='../';return}list.textContent='Загружаем…';try{const rows=await rpc('admin_iiko_export_queue',{p_token:token,p_days:60});list.innerHTML=rows.length?rows.map(x=>'<article><b>'+esc(x.date)+' · '+esc(x.point)+'</b><p>'+esc(x.type)+(x.number?' · № '+esc(x.number):'')+'</p><p>Статус: '+esc(x.status)+(x.error?' · <span class="error">'+esc(x.error)+'</span>':'')+'</p>'+(x.status==='ready_to_export'||x.status==='export_error'||x.status==='formed'?'<button data-id="'+esc(x.id)+'" data-kind="'+esc(x.kind)+'">Выгрузить в iiko</button>':'<small>Отправка недоступна при этом статусе</small>')+'</article>').join(''):'Нет документов, ожидающих выгрузки';list.querySelectorAll('button[data-id]').forEach(b=>b.onclick=async()=>{if(!confirm('Отправить выбранное перемещение в iiko?'))return;b.disabled=true;message.textContent='Отправляем…';try{const result=await rpc(b.dataset.kind==='internal_transfer'?'admin_internal_transfer_export_action':'admin_send_generated_document_to_iiko',b.dataset.kind==='internal_transfer'?{p_token:token,p_transfer_id:b.dataset.id}:{p_token:token,p_document_id:b.dataset.id});message.textContent='Отправка запущена. Обновите список через несколько секунд.';setTimeout(load,4000)}catch(e){message.textContent=e.message;b.disabled=false}})}catch(e){list.textContent='Ошибка: '+e.message}}
-document.getElementById('refresh').onclick=load;load();
+const list=document.getElementById('list');
+const message=document.getElementById('message');
+const refresh=document.getElementById('refresh');
+const filter=document.getElementById('filter');
+const more=document.getElementById('more');
+const escapeHtml=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+let documents=[], visible=30, loaded=false, requestSeq=0, pendingLoad=null;
+function description(row){
+  const statusNames={formed:'Сформирован',ready_to_export:'Готов к выгрузке',export_error:'Ошибка выгрузки',exporting:'Выгружается'};
+  return statusNames[row.status]||row.status||'Без статуса';
+}
+function needsReview(row){
+  const error=String(row.error||'').toLowerCase();
+  return row.status==='export_error' && (
+    /не повторяйте|signal timed out|processed|проведён|проведен|без проверки/.test(error)
+  );
+}
+function actionFor(row){
+  if(row.kind==='internal_transfer')return ['admin_internal_transfer_export_action',{p_token:token,p_transfer_id:row.id}];
+  if(row.kind==='kitchen_production')return ['admin_send_kitchen_production_to_iiko',{p_token:token,p_document_id:row.id}];
+  if(row.kind==='kitchen_transfer')return ['admin_send_kitchen_transfer_to_iiko',{p_token:token,p_movement_id:row.movementId}];
+  return ['admin_send_generated_document_to_iiko',{p_token:token,p_document_id:row.id}];
+}
+function render(){
+  const mode=filter.value;
+  const rows=documents.filter(row=>mode==='all'||(mode==='error'?row.status==='export_error':row.status!=='export_error'));
+  if(!rows.length){
+    list.textContent=documents.length?'По выбранному фильтру документов нет':'Нет документов, ожидающих выгрузки';
+    more.style.display='none';return;
+  }
+  list.innerHTML='<p class="meta">Всего: '+rows.length+' · Показано: '+Math.min(visible,rows.length)+'</p>'+
+    rows.slice(0,visible).map(row=>{
+      const blocked=needsReview(row)||row.kind==='kitchen_transfer'&&!row.movementId;
+      const linked=row.kind==='kitchen_transfer'&&row.isLinked;
+      const button=blocked
+        ? '<p class="warn">Требуется проверка в iiko перед повторной отправкой.</p>'
+        : '<button type="button" class="action" data-id="'+escapeHtml(row.id)+'">'+(linked?'Обновить в iiko':'Выгрузить в iiko')+'</button>';
+      return '<article><b>'+escapeHtml(row.date)+' · '+escapeHtml(row.point)+'</b>'+
+        '<p class="cardline">'+escapeHtml(row.type)+(row.number?' · № '+escapeHtml(row.number):'')+'</p>'+
+        '<p class="cardline">Статус: '+escapeHtml(description(row))+'</p>'+
+        (row.error?'<p class="error cardline">'+escapeHtml(row.error)+'</p>':'')+button+'</article>';
+    }).join('');
+  const remaining=rows.length-visible;
+  more.style.display=remaining>0?'inline-block':'none';
+  more.textContent=remaining>0?'Показать ещё ('+remaining+')':'';
+}
+async function rpc(name,args,timeoutMs=12000){
+  const controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),timeoutMs);
+  try{
+    const response=await fetch(API+'/'+name,{
+      method:'POST',cache:'no-store',signal:controller.signal,
+      headers:{apikey:KEY,'Content-Type':'application/json'},
+      body:JSON.stringify(args)
+    });
+    const payload=await response.json().catch(()=>null);
+    if(!response.ok)throw Error(payload?.message||'HTTP '+response.status);
+    return payload;
+  }catch(error){
+    if(error?.name==='AbortError')throw Error('Нет ответа сервера за '+Math.round(timeoutMs/1000)+' секунд. Проверьте соединение или VPN и повторите загрузку.');
+    if(error instanceof TypeError)throw Error('Не удалось подключиться к серверу. Проверьте интернет или VPN и нажмите «Обновить список».');
+    throw error;
+  }finally{clearTimeout(timeout);}
+}
+async function load(){
+  if(!token){location.href='../';return;}
+  const seq=++requestSeq;
+  if(pendingLoad)pendingLoad.abort();
+  const controller=new AbortController();
+  pendingLoad=controller;
+  refresh.disabled=true;
+  message.textContent=loaded?'Обновляем список…':'Загружаем документы…';
+  if(!loaded)list.textContent='Загружаем…';
+  const timeout=setTimeout(()=>controller.abort(),12000);
+  try{
+    const response=await fetch(API+'/admin_iiko_export_queue',{
+      method:'POST',cache:'no-store',signal:controller.signal,
+      headers:{apikey:KEY,'Content-Type':'application/json'},
+      body:JSON.stringify({p_token:token,p_days:120})
+    });
+    const rows=await response.json().catch(()=>null);
+    if(!response.ok)throw Error(rows?.message||'HTTP '+response.status);
+    if(!Array.isArray(rows))throw Error('Сервер вернул неожиданный формат списка');
+    if(seq!==requestSeq)return;
+    documents=rows;loaded=true;visible=30;
+    message.textContent='Обновлено в '+new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'})+'. Документов в очереди: '+rows.length+'.';
+    render();
+  }catch(error){
+    if(seq!==requestSeq)return;
+    const text=error?.name==='AbortError'
+      ?'Сервер не ответил за 12 секунд. Проверьте соединение или VPN и нажмите «Обновить список».'
+      :(error instanceof TypeError?'Нет соединения с сервером. Проверьте интернет или VPN и повторите.':'Ошибка загрузки: '+error.message);
+    message.textContent=text;
+    if(!loaded)list.innerHTML='<p class="error">'+escapeHtml(text)+'</p>';
+  }finally{
+    clearTimeout(timeout);
+    if(seq===requestSeq){pendingLoad=null;refresh.disabled=false;}
+  }
+}
+list.addEventListener('click',async event=>{
+  const button=event.target.closest('button[data-id]');
+  if(!button)return;
+  const row=documents.find(item=>item.id===button.dataset.id);
+  if(!row||needsReview(row)||row.kind==='kitchen_transfer'&&!row.movementId)return;
+  const update=row.kind==='kitchen_transfer'&&row.isLinked;
+  if(!confirm((update?'Обновить':'Отправить')+' документ «'+row.type+'» № '+(row.number||'без номера')+' в iiko?'))return;
+  button.disabled=true;
+  message.textContent='Запрос отправляется…';
+  try{
+    const [method,args]=actionFor(row);
+    const result=await rpc(method,args);
+    if(result?.ok===false)throw Error(result.message||'Не удалось запустить выгрузку');
+    message.textContent='Команда администратора принята. Статус документа обновится после ответа iiko.';
+    setTimeout(load,3500);
+  }catch(error){message.textContent='Ошибка отправки: '+error.message;button.disabled=false;}
+});
+filter.addEventListener('change',()=>{visible=30;if(loaded)render();});
+more.addEventListener('click',()=>{visible+=30;render();});
+refresh.addEventListener('click',load);
+load();
 </script></body></html>
