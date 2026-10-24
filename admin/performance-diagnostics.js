@@ -8,6 +8,7 @@
   try{pending=JSON.parse(localStorage.getItem(QUEUE_KEY)||'[]');if(!Array.isArray(pending))pending=[]}catch(e){pending=[]}
   let apiHeaders=null;
   let sending=false;
+  let lastUploadError='';
   const read=()=>{try{return JSON.parse(localStorage.getItem(KEY)||'[]')}catch{return []}};
   function log(event,detail={}){
     const entry={at:new Date().toISOString(),section,event,elapsedMs:Math.round(performance.now()-started),...detail};
@@ -39,12 +40,12 @@
     const batch=pending.splice(0,20);
     try{
       const r=await originalFetch('https://rgluzdxikpagugpmusbp.supabase.co/rest/v1/rpc/admin_performance_record',{method:'POST',headers:apiHeaders,body:JSON.stringify({p_token:token,p_events:batch}),signal:AbortSignal.timeout(7000)});
-      if(!r.ok)throw new Error('HTTP '+r.status);
+      if(!r.ok){let msg='';try{const body=await r.json();msg=String(body?.code||body?.message||'').slice(0,90)}catch(e){}throw new Error('HTTP '+r.status+(msg?' '+msg:''));}
       try{localStorage.setItem(QUEUE_KEY,JSON.stringify(pending))}catch(e){}
-      button.textContent='Диагностика ✓';
+      lastUploadError='';button.textContent='Диагностика ✓';button.title='Записи переданы';
     }catch(e){pending=batch.concat(pending).slice(-100);
       try{localStorage.setItem(QUEUE_KEY,JSON.stringify(pending))}catch(err){}
-      button.textContent='Диагностика !';
+      lastUploadError=String(e.message||e);button.textContent='Диагностика ! '+lastUploadError.slice(0,35);button.title=lastUploadError;
       console.warn('[Столовая] Не удалось отправить логи:',String(e.message||e));}
     finally{sending=false}
   },10000);
