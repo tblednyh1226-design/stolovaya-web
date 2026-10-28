@@ -136,7 +136,7 @@
       const key=b.dataset.open,d=(state.data?.documents||[]).find(x=>historyKey(x)===key);
       if(d?.doc_type==='closing')b.onclick=async()=>{
         if(state.open.has(key)){state.open.delete(key);render();return}
-        state.open.add(key);render();await loadClosingReport(d);
+        await openDocument(key);if(state.open.has(key))await loadClosingReport(d);
       };
     });
     document.querySelectorAll('[data-closing-edit]').forEach(b=>b.onclick=()=>{const d=(state.data?.documents||[]).find(x=>historyKey(x)===b.dataset.closingEdit);if(!d)return;state.editing.has(historyKey(d))?saveClosingEdit(d):startClosingEdit(d)});
