@@ -109,13 +109,21 @@
     if(!state.closingReports[key])return '<div class="closing-loading">Таблица закрытия дня ещё не загружена.</div>';
     const rows=closingRows(d), groups=new Map();
     for(const r of rows){const g=(r.group_name||'Прочее').trim()||'Прочее';if(!groups.has(g))groups.set(g,[]);groups.get(g).push(r)}
+    const split=splitEnabled(d);
     const body=[...groups.entries()].sort((a,b)=>rank(a[0])-rank(b[0])||a[0].localeCompare(b[0],'ru')).map(([g,rs])=>{
       rs.sort((a,b)=>String(a.dish_name).localeCompare(String(b.dish_name),'ru'));
-      return `<tr class="closing-group"><td colspan="7">${esc(g)}</td></tr>${rs.map(r=>`<tr><td class="closing-dish">${esc(r.dish_name)}</td><td>${fmt(r.opening_qty)}</td><td>${fmt(r.received_qty)}</td><td>${editing?closeInput(d,r,'leftover'):fmt(r.leftover_qty)}</td><td>${editing?closeInput(d,r,'waste'):fmt(r.waste_qty)}</td><td>${editing?closeInput(d,r,'frozen'):fmt(r.frozen_qty)}</td><td class="sold">${fmt(r.sold_qty)}</td></tr>`).join('')}`;
+      return `<tr class="closing-group"><td colspan="${split?9:7}">${esc(g)}</td></tr>${rs.map(r=>{
+        const kitchen=split?kitchenQty(d,r):0;
+        const arrivals=num(r.received_qty)-kitchen;
+        return `<tr><td class="closing-dish">${esc(r.dish_name)}</td><td>${fmt(r.opening_qty)}</td><td>${fmt(split?arrivals:r.received_qty)}</td>${split?`<td>${fmt(kitchen)}</td><td><b>${fmt(r.available_qty)}</b></td>`:''}<td>${editing?closeInput(d,r,'leftover'):fmt(r.leftover_qty)}</td><td>${editing?closeInput(d,r,'waste'):fmt(r.waste_qty)}</td><td>${editing?closeInput(d,r,'frozen'):fmt(r.frozen_qty)}</td><td class="sold">${fmt(r.sold_qty)}</td></tr>`;
+      }).join('')}`;
     }).join('');
-    const sum=f=>rows.reduce((s,r)=>s+num(r[f]),0);
+    const sum=f=>rows.reduce((total,r)=>total+num(r[f]),0);
+    const totalKitchen=rows.reduce((total,r)=>total+kitchenQty(d,r),0);
+    const headers=split?'<th>Номенклатура</th><th>Остаток на начало</th><th>Пришло</th><th>С кухни</th><th>Доступно</th><th>Остаток</th><th>Утиль</th><th>Заморозка</th><th>Итого продано</th>':'<th>Номенклатура</th><th>Остаток на начало</th><th>Пришло</th><th>Остаток</th><th>Утиль</th><th>Заморозка</th><th>Итого продано</th>';
+    const totalRow=`<tr class="closing-total"><td>ИТОГО</td><td>${fmt(sum('opening_qty'))}</td><td>${fmt(sum('received_qty')-(split?totalKitchen:0))}</td>${split?`<td>${fmt(totalKitchen)}</td><td>${fmt(sum('available_qty'))}</td>`:''}<td>${fmt(sum('leftover_qty'))}</td><td>${fmt(sum('waste_qty'))}</td><td>${fmt(sum('frozen_qty'))}</td><td>${fmt(sum('sold_qty'))}</td></tr>`;
     const controls=`<div class="edit-toolbar closing-toolbar">${editing?`<label>Сотрудник<select data-actor-select>${actorOptions()}</select></label>`:''}<div class="edit-buttons"><button class="primary" data-closing-edit="${esc(key)}" ${saving?'disabled':''}>${saving?'Сохраняем…':editing?'Сохранить':'Редактировать'}</button>${editing?`<button class="secondary" data-closing-cancel="${esc(key)}" ${saving?'disabled':''}>Отмена</button>`:''}</div></div>`;
-    return `${controls}<div class="closing-wrap"><table class="closing-table"><thead><tr><th>Номенклатура</th><th>Остаток на начало</th><th>Пришло</th><th>Остаток</th><th>Утиль</th><th>Заморозка</th><th>Итого продано</th></tr></thead><tbody>${body}<tr class="closing-total"><td>ИТОГО</td><td>${fmt(sum('opening_qty'))}</td><td>${fmt(sum('received_qty'))}</td><td>${fmt(sum('leftover_qty'))}</td><td>${fmt(sum('waste_qty'))}</td><td>${fmt(sum('frozen_qty'))}</td><td>${fmt(sum('sold_qty'))}</td></tr></tbody></table></div>`;
+    return `${controls}<div class="closing-wrap"><table class="closing-table"><thead><tr>${headers}</tr></thead><tbody>${body}${totalRow}</tbody></table></div>`;
   }
   details=function(d){
     if(d.doc_type==='closing'){
