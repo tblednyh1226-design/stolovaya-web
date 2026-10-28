@@ -7,7 +7,10 @@
   state.closingReports=state.closingReports||{};
   state.kitchenSupplyByDate=state.kitchenSupplyByDate||{};
   const kitchenSplitDate='2026-10-29';
-  const splitEnabled=d=>d.business_date>=kitchenSplitDate&&['BUKHARA','PRAVDA'].includes(d.point_code);
+  const previewDate='2026-10-28';
+  const previewAllowed=d=>d.business_date===previewDate&&['BUKHARA','PRAVDA'].includes(d.point_code);
+  state.kitchenSplitPreview=state.kitchenSplitPreview||new Set();
+  const splitEnabled=d=>(d.business_date>=kitchenSplitDate||state.kitchenSplitPreview.has(historyKey(d)))&&['BUKHARA','PRAVDA'].includes(d.point_code);
   const kitchenQty=(d,r)=>Number(state.kitchenSupplyByDate[d.business_date]?.[d.point_code+'|'+r.dish_id]||0);
 
   state.closingReportBusy=state.closingReportBusy||new Set();
@@ -95,7 +98,7 @@
   async function loadClosingReport(d,force=false){
     const key=historyKey(d);if(!force&&state.closingReports[key])return;
     state.closingReportBusy.add(key);render();
-    try{const report=await rpc('admin_main_operational_report',{p_token:state.token,p_business_date:d.business_date});if(splitEnabled(d)){const supply=await rpc('admin_closing_kitchen_supply',{p_token:state.token,p_business_date:d.business_date});const map={};for(const item of supply||[])map[item.point_code+'|'+item.dish_id]=Number(item.qty)||0;state.kitchenSupplyByDate[d.business_date]=map;}state.closingReports[key]=report}
+    try{const report=await rpc('admin_main_operational_report',{p_token:state.token,p_business_date:d.business_date});if(splitEnabled(d)||previewAllowed(d)){const supply=await rpc('admin_closing_kitchen_supply',{p_token:state.token,p_business_date:d.business_date});const map={};for(const item of supply||[])map[item.point_code+'|'+item.dish_id]=Number(item.qty)||0;state.kitchenSupplyByDate[d.business_date]=map;}state.closingReports[key]=report}
     catch(e){state.message=e.message}
     finally{state.closingReportBusy.delete(key);render()}
   }
@@ -122,8 +125,9 @@
     const totalKitchen=rows.reduce((total,r)=>total+kitchenQty(d,r),0);
     const headers=split?'<th>Номенклатура</th><th>Остаток на начало</th><th>Пришло</th><th>С кухни</th><th>Доступно</th><th>Остаток</th><th>Утиль</th><th>Заморозка</th><th>Итого продано</th>':'<th>Номенклатура</th><th>Остаток на начало</th><th>Пришло</th><th>Остаток</th><th>Утиль</th><th>Заморозка</th><th>Итого продано</th>';
     const totalRow=`<tr class="closing-total"><td>ИТОГО</td><td>${fmt(sum('opening_qty'))}</td><td>${fmt(sum('received_qty')-(split?totalKitchen:0))}</td>${split?`<td>${fmt(totalKitchen)}</td><td>${fmt(sum('available_qty'))}</td>`:''}<td>${fmt(sum('leftover_qty'))}</td><td>${fmt(sum('waste_qty'))}</td><td>${fmt(sum('frozen_qty'))}</td><td>${fmt(sum('sold_qty'))}</td></tr>`;
+    const previewToggle=previewAllowed(d)?`<button type="button" class="secondary" data-kitchen-preview="${esc(key)}">${state.kitchenSplitPreview.has(key)?'Вернуть обычный вид':'Предпросмотр новых граф (без изменений данных)'}</button>`:'';
     const controls=`<div class="edit-toolbar closing-toolbar">${editing?`<label>Сотрудник<select data-actor-select>${actorOptions()}</select></label>`:''}<div class="edit-buttons"><button class="primary" data-closing-edit="${esc(key)}" ${saving?'disabled':''}>${saving?'Сохраняем…':editing?'Сохранить':'Редактировать'}</button>${editing?`<button class="secondary" data-closing-cancel="${esc(key)}" ${saving?'disabled':''}>Отмена</button>`:''}</div></div>`;
-    return `${controls}<div class="closing-wrap"><table class="closing-table"><thead><tr>${headers}</tr></thead><tbody>${body}${totalRow}</tbody></table></div>`;
+    return `${previewToggle}${controls}<div class="closing-wrap"><table class="closing-table"><thead><tr>${headers}</tr></thead><tbody>${body}${totalRow}</tbody></table></div>`;
   }
   details=function(d){
     if(d.doc_type==='closing'){
@@ -152,6 +156,7 @@
         await openDocument(key);if(state.open.has(key))await loadClosingReport(d);
       };
     });
+    document.querySelectorAll('[data-kitchen-preview]').forEach(b=>b.onclick=()=>{const key=b.dataset.kitchenPreview;if(state.kitchenSplitPreview.has(key))state.kitchenSplitPreview.delete(key);else state.kitchenSplitPreview.add(key);render()});
     document.querySelectorAll('[data-closing-edit]').forEach(b=>b.onclick=()=>{const d=(state.data?.documents||[]).find(x=>historyKey(x)===b.dataset.closingEdit);if(!d)return;state.editing.has(historyKey(d))?saveClosingEdit(d):startClosingEdit(d)});
     document.querySelectorAll('[data-closing-cancel]').forEach(b=>b.onclick=()=>{const d=(state.data?.documents||[]).find(x=>historyKey(x)===b.dataset.closingCancel);if(d)cancelClosingEdit(d)});
     document.querySelectorAll('[data-close-draft]').forEach(inp=>inp.oninput=()=>state.closingDrafts[inp.dataset.closeDraft]=inp.value);
