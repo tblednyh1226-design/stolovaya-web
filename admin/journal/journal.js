@@ -5,7 +5,28 @@ function shift(days){const d=new Date();d.setDate(d.getDate()+days);return new I
 function monthStart(){const today=shift(0);return today.slice(0,8)+'01'}
 const linkParams=new URLSearchParams(location.search);const linkedDate=linkParams.get('date');const linkedType=linkParams.get('type');const linkedId=linkParams.get('id');const state={token:localStorage.getItem('stolovaya:admin')||sessionStorage.getItem('stolovaya:admin')||'',pin:'',from:linkedDate||monthStart(),to:linkedDate||shift(0),type:linkedType||'closing',point:'',data:null,busy:false,message:'',open:new Set(),historyOpen:new Set(),histories:{},historyBusy:new Set(),employees:[],actor:localStorage.getItem('stolovaya:journal-actor')||'',editing:new Set(),saving:new Set(),drafts:{},ksoIikoStatuses:{},internalIikoStatuses:{},loadingStage:'',detailBusy:new Set(),detailLoaded:new Set(),detailErrors:{}};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]));
-async function rpc(name,body){const r=await fetch(`${API}/${name}`,{method:'POST',headers:{apikey:KEY,'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(20000)});const d=await r.json().catch(()=>null);if(!r.ok)throw new Error(d?.message||'Не удалось выполнить запрос');return d}
+const SAFE_READ_RPC=new Set(['admin_document_journal_list','admin_journal_document_detail','admin_employee_directory','admin_document_history','admin_internal_transfer_export_statuses','admin_kitchen_transfer_iiko_statuses']);
+const rpcMetrics=[];
+function recordRpc(m){rpcMetrics.unshift(m);if(rpcMetrics.length>40)rpcMetrics.length=40;console.info('[journal rpc]',m)}
+async function rpc(name,body){
+ const safe=SAFE_READ_RPC.has(name),maxAttempts=safe?2:1;
+ for(let attempt=1;attempt<=maxAttempts;attempt++){
+  const started=performance.now();let responseAt=0,status=0;
+  try{
+   const r=await fetch(`${API}/${name}`,{method:'POST',headers:{apikey:KEY,'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(12000),cache:'no-store'});
+   responseAt=performance.now();status=r.status;
+   const d=await r.json().catch(()=>null);
+   recordRpc({name,attempt,status,headersMs:Math.round(responseAt-started),bodyMs:Math.round(performance.now()-responseAt),totalMs:Math.round(performance.now()-started),at:new Date().toISOString()});
+   if(!r.ok){const err=new Error(d?.message||'Не удалось выполнить запрос');err.httpStatus=r.status;throw err}
+   return d;
+  }catch(e){
+   if(!responseAt)recordRpc({name,attempt,status:0,totalMs:Math.round(performance.now()-started),error:e.name||'NetworkError',at:new Date().toISOString()});
+   const transient=!e.httpStatus||[429,502,503,504].includes(e.httpStatus);
+   if(attempt===maxAttempts||!transient)throw e;
+   await new Promise(resolve=>setTimeout(resolve,400));
+  }
+ }
+}
 function saveAdminToken(t){state.token=t;localStorage.setItem('stolovaya:admin',t);sessionStorage.setItem('stolovaya:admin',t)} function clearAdminToken(){state.token='';localStorage.removeItem('stolovaya:admin');sessionStorage.removeItem('stolovaya:admin')}
 async function bootstrapFromStolovaya(){state.loadingStage='Проверяем доступ';const buffetToken=localStorage.getItem('stolovaya:web-token');if(!buffetToken)return false;try{const r=await rpc('public_admin_session_from_buffet_token',{p_token:buffetToken});saveAdminToken(r.token);await load();return true}catch(e){return false}}
 async function login(){if(state.pin.length<4)return;state.loadingStage='Проверяем доступ';state.busy=true;state.message='';render();try{const r=await rpc('public_admin_web_login',{p_pin:state.pin});saveAdminToken(r.token);state.pin='';await load()}catch(e){state.message=e.message;clearAdminToken()}finally{state.busy=false;render()}}
@@ -21,7 +42,7 @@ async function openDocument(k){
  try{
   const details=await rpc('admin_journal_document_detail',{p_token:state.token,p_doc_type:d.doc_type,p_doc_id:String(d.doc_id)});
   d.details=details;state.detailLoaded.add(k);
- }catch(e){state.detailErrors[k]=e?.name==='TimeoutError'?'Сервер не ответил за 20 секунд':(e.message||'Ошибка загрузки');console.error('[journal] document detail failed',d.doc_type,d.doc_id,e)}
+ }catch(e){state.detailErrors[k]=e?.name==='TimeoutError'?'Сервер не ответил за 12 секунд (после повторной попытки)':(e.message||'Ошибка загрузки');console.error('[journal] document detail failed',d.doc_type,d.doc_id,e)}
  finally{state.detailBusy.delete(k);render()}
 }
 function loginScreen(){return `<main class="journal"><section class="card login"><h1>Журнал документов</h1><p>Если вы уже входили в «Столовую» на этом устройстве, журнал откроется автоматически. Иначе введите код доступа.</p><input id="pin" type="password" inputmode="numeric" value="${esc(state.pin)}" placeholder="Код доступа"><button id="login" ${state.busy||state.pin.length<4?'disabled':''}>${state.busy?(state.loadingStage||'Загружаем…'):'Войти'}</button>${state.message?`<p class="message">${esc(state.message)}</p>`:''}</section></main>`}
