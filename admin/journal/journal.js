@@ -7,7 +7,7 @@ const linkParams=new URLSearchParams(location.search);const linkedDate=linkParam
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]));
 const SAFE_READ_RPC=new Set(['admin_document_journal_list','admin_journal_document_detail','admin_employee_directory','admin_document_history','admin_internal_transfer_export_statuses','admin_kitchen_transfer_iiko_statuses']);
 const rpcMetrics=[];
-function recordRpc(m){rpcMetrics.unshift(m);if(rpcMetrics.length>40)rpcMetrics.length=40;console.info('[journal rpc]',m)}
+function recordRpc(m){rpcMetrics.unshift(m);if(rpcMetrics.length>40)rpcMetrics.length=40;console.info('[journal rpc]',m);if(state.token&&m.name!=='admin_record_client_diagnostic'){fetch(API+'/admin_record_client_diagnostic',{method:'POST',headers:{apikey:KEY,'Content-Type':'application/json'},body:JSON.stringify({p_token:state.token,p_event_type:m.error?'error':'rpc',p_rpc_name:m.name,p_duration_ms:m.totalMs,p_status_code:m.status||null,p_error_type:m.error||null,p_page:'admin/journal',p_attempt:m.attempt}),signal:AbortSignal.timeout(4000),keepalive:true}).catch(()=>{})}}
 async function rpc(name,body){
  const safe=SAFE_READ_RPC.has(name),maxAttempts=safe?2:1;
  for(let attempt=1;attempt<=maxAttempts;attempt++){
