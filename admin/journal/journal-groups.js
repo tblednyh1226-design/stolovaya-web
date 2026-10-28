@@ -5,6 +5,11 @@
     'Напитки','Хлеб','Дополнительный ассортимент','Выпечка','Прочее'
   ];
   state.closingReports=state.closingReports||{};
+  state.kitchenSupplyByDate=state.kitchenSupplyByDate||{};
+  const kitchenSplitDate='2026-10-29';
+  const splitEnabled=d=>d.business_date>=kitchenSplitDate&&['BUKHARA','PRAVDA'].includes(d.point_code);
+  const kitchenQty=(d,r)=>Number(state.kitchenSupplyByDate[d.business_date]?.[d.point_code+'|'+r.dish_id]||0);
+
   state.closingReportBusy=state.closingReportBusy||new Set();
   state.closingDrafts=state.closingDrafts||{};
   const rank=g=>{const i=GROUP_ORDER.indexOf(g);return i<0?999:i};
@@ -90,7 +95,7 @@
   async function loadClosingReport(d,force=false){
     const key=historyKey(d);if(!force&&state.closingReports[key])return;
     state.closingReportBusy.add(key);render();
-    try{state.closingReports[key]=await rpc('admin_main_operational_report',{p_token:state.token,p_business_date:d.business_date})}
+    try{const report=await rpc('admin_main_operational_report',{p_token:state.token,p_business_date:d.business_date});if(splitEnabled(d)){const supply=await rpc('admin_closing_kitchen_supply',{p_token:state.token,p_business_date:d.business_date});const map={};for(const item of supply||[])map[item.point_code+'|'+item.dish_id]=Number(item.qty)||0;state.kitchenSupplyByDate[d.business_date]=map;}state.closingReports[key]=report}
     catch(e){state.message=e.message}
     finally{state.closingReportBusy.delete(key);render()}
   }
