@@ -19,10 +19,8 @@ async function openDocument(k){
  if(state.detailLoaded.has(k)||state.detailBusy.has(k))return;
  state.detailBusy.add(k);render();
  try{
-  const result=await rpc('admin_document_journal',{p_token:state.token,p_from:d.business_date,p_to:d.business_date,p_type:d.doc_type,p_point_code:d.point_code||null});
-  const found=(result.documents||[]).find(x=>historyKey(x)===k);
-  if(!found)throw new Error('Документ не найден');
-  Object.assign(d,found);state.detailLoaded.add(k);
+  const details=await rpc('admin_journal_document_detail',{p_token:state.token,p_doc_type:d.doc_type,p_doc_id:String(d.doc_id)});
+  d.details=details;state.detailLoaded.add(k);
  }catch(e){state.message='Не удалось открыть документ: '+e.message;state.open.delete(k)}
  finally{state.detailBusy.delete(k);render()}
 }
