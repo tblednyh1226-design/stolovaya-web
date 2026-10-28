@@ -39,11 +39,12 @@ async function openDocument(k){
  state.open.add(k);render();
  if(state.detailLoaded.has(k)||state.detailBusy.has(k))return;
  state.detailBusy.add(k);delete state.detailErrors[k];render();
+ const watchdog=setTimeout(()=>{if(state.detailBusy.has(k)){state.detailErrors[k]='Загрузка документа длится более 15 секунд. Проверяем соединение; можно повторить запрос.';render()}},15000);
  try{
   const details=await rpc('admin_journal_document_detail',{p_token:state.token,p_doc_type:d.doc_type,p_doc_id:String(d.doc_id)});
   d.details=details;state.detailLoaded.add(k);
  }catch(e){state.detailErrors[k]=e?.name==='TimeoutError'?'Сервер не ответил за 12 секунд (после повторной попытки)':(e.message||'Ошибка загрузки');console.error('[journal] document detail failed',d.doc_type,d.doc_id,e)}
- finally{state.detailBusy.delete(k);render()}
+ finally{clearTimeout(watchdog);state.detailBusy.delete(k);render()}
 }
 function loginScreen(){return `<main class="journal"><section class="card login"><h1>Журнал документов</h1><p>Если вы уже входили в «Столовую» на этом устройстве, журнал откроется автоматически. Иначе введите код доступа.</p><input id="pin" type="password" inputmode="numeric" value="${esc(state.pin)}" placeholder="Код доступа"><button id="login" ${state.busy||state.pin.length<4?'disabled':''}>${state.busy?(state.loadingStage||'Загружаем…'):'Войти'}</button>${state.message?`<p class="message">${esc(state.message)}</p>`:''}</section></main>`}
 function typeName(t){return ({movement:'Перемещение',closing:'Закрытие дня',realization:'Акт реализации',utilization:'Акт утилизации',internal_transfer:'Внутреннее перемещение',freeze_in:'Заморозка',freeze_out:'Разморозка',freeze_adjustment:'Корректировка морозилки',correction:'Корректировка'})[t]||t}
