@@ -41,7 +41,7 @@
       if(vals.thawed!==num(r.thawed_qty)||vals.leftover!==num(r.leftover_qty)||vals.waste!==num(r.waste_qty)||vals.frozen!==num(r.frozen_qty))changes.push({r,vals});
     }
     if(!changes.length){cancelEdit(d);return}
-    state.thawClosingSaving.add(key);state.message='';render();
+    state.thawClosingSaving.add(key);state.message='';if(state.closingSaveErrors)delete state.closingSaveErrors[key];render();
     try{
       for(const ch of changes){
         if(ch.vals.thawed!==num(ch.r.thawed_qty)){
@@ -62,7 +62,7 @@
       state.closingReports[key]=await rpc('admin_main_operational_report',{p_token:state.token,p_business_date:d.business_date});
       await load();
       state.message=`Закрытие дня ${d.business_date} · ${d.to_point||d.point_code} пересчитано`;
-    }catch(e){state.message=e.message||'Не удалось сохранить корректировку'}
+    }catch(e){state.message=e.message||'Не удалось сохранить корректировку';state.closingSaveErrors=state.closingSaveErrors||{};state.closingSaveErrors[key]=state.message;console.error('[closing save failed]',{point:d.point_code,date:d.business_date,message:state.message});}
     finally{state.thawClosingSaving.delete(key);render()}
   }
 
@@ -86,7 +86,7 @@
     const kitchenTotal=rows.reduce((t,r)=>t+kitchenQty(r),0);
     const previewButton=previewAllowed?`<button type="button" class="secondary" data-kitchen-preview="${esc(key)}">${preview?'Вернуть обычный вид':'Предпросмотр новых граф (без изменений данных)'}</button>`:'';
     const controls=`<div class="edit-toolbar closing-toolbar"><div class="edit-buttons"><button class="primary" data-thaw-closing-edit="${esc(key)}" ${saving?'disabled':''}>${saving?'Сохраняем…':editing?'Сохранить':'Редактировать'}</button>${editing?`<button class="secondary" data-thaw-closing-cancel="${esc(key)}" ${saving?'disabled':''}>Отмена</button>`:''}</div></div>`;
-    return `<div class="details closing-details"><div class="details-grid"><div><b>Тип</b><br>${esc(typeName(d.doc_type))}</div><div><b>Точка</b><br>${esc(d.to_point||'—')}</div></div>${previewButton}${controls}<div class="closing-wrap"><table class="closing-table"><thead><tr><th>Номенклатура</th><th>Остаток на начало</th><th>Пришло</th>${split?'<th>С кухни</th>':''}<th>Доступно</th><th>Из заморозки</th><th>Остаток</th><th>Утиль</th><th>Заморозка</th><th>Итого продано</th></tr></thead><tbody>${body}<tr class="closing-total"><td>ИТОГО</td><td>${fmt(sum('opening_qty'))}</td><td>${fmt(sum('received_qty')-(split?kitchenTotal:0))}</td>${split?`<td>${fmt(kitchenTotal)}</td>`:''}<td>${fmt(sum('available_qty'))}</td><td>${fmt(sum('thawed_qty'))}</td><td>${fmt(sum('leftover_qty'))}</td><td>${fmt(sum('waste_qty'))}</td><td>${fmt(sum('frozen_qty'))}</td><td>${fmt(sum('sold_qty'))}</td></tr></tbody></table></div></div>`;
+    return `<div class="details closing-details"><div class="details-grid"><div><b>Тип</b><br>${esc(typeName(d.doc_type))}</div><div><b>Точка</b><br>${esc(d.to_point||'—')}</div></div>${previewButton}${controls}${state.closingSaveErrors?.[key]?`<p class="message" role="alert" style="margin:12px;color:#9d2424;white-space:pre-wrap">Ошибка сохранения: ${esc(state.closingSaveErrors[key])}</p>`:''}<div class="closing-wrap"><table class="closing-table"><thead><tr><th>Номенклатура</th><th>Остаток на начало</th><th>Пришло</th>${split?'<th>С кухни</th>':''}<th>Доступно</th><th>Из заморозки</th><th>Остаток</th><th>Утиль</th><th>Заморозка</th><th>Итого продано</th></tr></thead><tbody>${body}<tr class="closing-total"><td>ИТОГО</td><td>${fmt(sum('opening_qty'))}</td><td>${fmt(sum('received_qty')-(split?kitchenTotal:0))}</td>${split?`<td>${fmt(kitchenTotal)}</td>`:''}<td>${fmt(sum('available_qty'))}</td><td>${fmt(sum('thawed_qty'))}</td><td>${fmt(sum('leftover_qty'))}</td><td>${fmt(sum('waste_qty'))}</td><td>${fmt(sum('frozen_qty'))}</td><td>${fmt(sum('sold_qty'))}</td></tr></tbody></table></div></div>`;
   };
 
   const prevBind=bind;
