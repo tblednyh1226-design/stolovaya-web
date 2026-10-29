@@ -43,21 +43,16 @@
     if(!changes.length){cancelEdit(d);return}
     state.thawClosingSaving.add(key);state.message='';if(state.closingSaveErrors)delete state.closingSaveErrors[key];render();
     try{
-      for(const ch of changes){
-        if(ch.vals.thawed!==num(ch.r.thawed_qty)){
-          await rpc('admin_set_freezer_out',{
-            p_token:state.token,p_business_date:d.business_date,p_point_code:d.point_code,p_dish_id:ch.r.dish_id,
-            p_quantity:ch.vals.thawed,p_actor:state.actor||'Администратор',p_reason:'Корректировка из документа закрытия дня'
-          });
-        }
-        if(ch.vals.leftover!==num(ch.r.leftover_qty)||ch.vals.waste!==num(ch.r.waste_qty)||ch.vals.frozen!==num(ch.r.frozen_qty)){
-          await rpc('admin_correct_closing',{
-            p_token:state.token,p_business_date:d.business_date,p_point_code:d.point_code,p_dish_id:ch.r.dish_id,
-            p_leftover:ch.vals.leftover,p_waste:ch.vals.waste,p_frozen:ch.vals.frozen,
-            p_reason:'Корректировка из журнала документов',p_comment:null,p_actor:state.actor||'Администратор'
-          });
-        }
-      }
+      await rpc('admin_save_closing_batch',{
+        p_token:state.token,p_business_date:d.business_date,p_point_code:d.point_code,
+        p_actor:state.actor||'Администратор',
+        p_changes:changes.map(ch=>({
+          dish_id:ch.r.dish_id,thawed:ch.vals.thawed,leftover:ch.vals.leftover,
+          waste:ch.vals.waste,frozen:ch.vals.frozen,
+          change_thawed:ch.vals.thawed!==num(ch.r.thawed_qty),
+          change_closing:ch.vals.leftover!==num(ch.r.leftover_qty)||ch.vals.waste!==num(ch.r.waste_qty)||ch.vals.frozen!==num(ch.r.frozen_qty)
+        }))
+      });
       state.thawClosingEditing.delete(key);delete state.closingReports[key];delete state.histories[key];
       state.closingReports[key]=await rpc('admin_main_operational_report',{p_token:state.token,p_business_date:d.business_date});
       await load();
