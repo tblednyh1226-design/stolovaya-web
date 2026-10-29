@@ -3,6 +3,8 @@
   state.thawClosingDrafts=state.thawClosingDrafts||{};
   state.thawClosingEditing=state.thawClosingEditing||new Set();
   state.thawClosingSaving=state.thawClosingSaving||new Set();
+  state.closingAddedRows=state.closingAddedRows||{};
+  state.closingDishCatalog=state.closingDishCatalog||[];
 
   const num=v=>v==null||v===''?0:Number(v);
   const fmt=v=>v==null?'—':Number(v).toLocaleString('ru-RU',{maximumFractionDigits:3});
@@ -16,13 +18,16 @@
       num(r.opening_qty)!==0||num(r.received_qty)!==0||num(r.thawed_qty)!==0||r.leftover_qty!=null||num(r.waste_qty)!==0||num(r.frozen_qty)!==0||r.sold_qty!=null||r.is_submitted
     ));
   }
+  async function loadDishCatalog(){if(state.closingDishCatalog.length)return;state.closingDishCatalog=await rpc('admin_closing_dish_catalog',{p_token:state.token});render()}
   function beginEdit(d){
+    state.closingAddedRows[historyKey(d)]=[];
+    loadDishCatalog().catch(e=>{state.message=e.message;render()});
     const key=historyKey(d);state.thawClosingEditing.add(key);state.message='';
     for(const r of rowsFor(d))for(const f of ['thawed','leftover','waste','frozen'])state.thawClosingDrafts[ck(d,r,f)]=String(r[f+'_qty']??0);
     render();
   }
   function cancelEdit(d){
-    const key=historyKey(d);state.thawClosingEditing.delete(key);
+    const key=historyKey(d);state.thawClosingEditing.delete(key);delete state.closingAddedRows[key];
     for(const r of rowsFor(d))for(const f of ['thawed','leftover','waste','frozen'])delete state.thawClosingDrafts[ck(d,r,f)];
     render();
   }
@@ -40,6 +45,20 @@
       }
       if(vals.thawed!==num(r.thawed_qty)||vals.leftover!==num(r.leftover_qty)||vals.waste!==num(r.waste_qty)||vals.frozen!==num(r.frozen_qty))changes.push({r,vals});
     }
+    const added=state.closingAddedRows[key]||[];
+    for(const item of added){
+      if(!item.dish_id){state.message='Выберите блюдо в новой строке';render();return}
+      const vals={};
+      for(const f of ['thawed','leftover','waste','frozen']){
+        vals[f]=Number(String(item[f]??0).replace(',','.'));
+        if(!Number.isFinite(vals[f])||vals[f]<0){state.message='Проверьте количества новой строки';render();return}
+      }
+      const existing=changes.find(c=>c.r.dish_id===item.dish_id);
+      const source=rowsFor(d).find(r=>r.dish_id===item.dish_id);
+      if(existing){for(const f of ['thawed','leftover','waste','frozen'])existing.vals[f]+=vals[f];}
+      else if(source){const merged={};for(const f of ['thawed','leftover','waste','frozen'])merged[f]=num(source[f+'_qty'])+vals[f];changes.push({r:source,vals:merged});}
+      else changes.push({r:{dish_id:item.dish_id,thawed_qty:0,leftover_qty:0,waste_qty:0,frozen_qty:0},vals});
+    }
     if(!changes.length){cancelEdit(d);return}
     state.thawClosingSaving.add(key);state.message='';if(state.closingSaveErrors)delete state.closingSaveErrors[key];render();
     try{
@@ -53,7 +72,7 @@
           change_closing:ch.vals.leftover!==num(ch.r.leftover_qty)||ch.vals.waste!==num(ch.r.waste_qty)||ch.vals.frozen!==num(ch.r.frozen_qty)
         }))
       });
-      state.thawClosingEditing.delete(key);delete state.closingReports[key];delete state.histories[key];
+      state.thawClosingEditing.delete(key);delete state.closingAddedRows[key];delete state.closingReports[key];delete state.histories[key];
       state.closingReports[key]=await rpc('admin_main_operational_report',{p_token:state.token,p_business_date:d.business_date});
       await load();
       state.message=`Закрытие дня ${d.business_date} · ${d.to_point||d.point_code} пересчитано`;
@@ -77,11 +96,13 @@
       rs.sort((a,b)=>String(a.dish_name).localeCompare(String(b.dish_name),'ru'));
       return `<tr class="closing-group"><td colspan="${split?10:9}">${esc(g)}</td></tr>${rs.map(r=>`<tr><td class="closing-dish">${esc(r.dish_name)}</td><td>${fmt(r.opening_qty)}</td><td>${fmt(split?num(r.received_qty)-kitchenQty(r):r.received_qty)}</td>${split?`<td>${fmt(kitchenQty(r))}</td>`:''}<td><b>${fmt(r.available_qty)}</b></td><td>${editing?input(d,r,'thawed'):fmt(r.thawed_qty)}</td><td>${editing?input(d,r,'leftover'):fmt(r.leftover_qty)}</td><td>${editing?input(d,r,'waste'):fmt(r.waste_qty)}</td><td>${editing?input(d,r,'frozen'):fmt(r.frozen_qty)}</td><td class="sold">${fmt(r.sold_qty)}</td></tr>`).join('')}`;
     }).join('');
+    const added=state.closingAddedRows[key]||[];
+    const newRows=editing?added.map((item,i)=>`<tr class="closing-added-row"><td><select data-closing-added-dish="${esc(key)}" data-added-index="${i}"><option value="">Выбрать блюдо…</option>${state.closingDishCatalog.map(dish=>`<option value="${esc(dish.id)}" ${dish.id===item.dish_id?'selected':''}>${esc(dish.name)}</option>`).join('')}</select><button type="button" data-closing-remove-added="${esc(key)}" data-added-index="${i}">Удалить</button></td><td>—</td><td>—</td>${split?'<td>—</td>':''}<td>По движениям</td>${['thawed','leftover','waste','frozen'].map(f=>`<td><input class="close-edit-input" type="number" min="0" step="0.001" data-closing-added-field="${f}" data-added-key="${esc(key)}" data-added-index="${i}" value="${esc(item[f]??0)}"></td>`).join('')}<td>После сохранения</td></tr>`).join(''):'';
     const sum=f=>rows.reduce((s,r)=>s+num(r[f]),0);
     const kitchenTotal=rows.reduce((t,r)=>t+kitchenQty(r),0);
     const previewButton=previewAllowed?`<button type="button" class="secondary" data-kitchen-preview="${esc(key)}">${preview?'Вернуть обычный вид':'Предпросмотр новых граф (без изменений данных)'}</button>`:'';
-    const controls=`<div class="edit-toolbar closing-toolbar"><div class="edit-buttons"><button class="primary" data-thaw-closing-edit="${esc(key)}" ${saving?'disabled':''}>${saving?'Сохраняем…':editing?'Сохранить':'Редактировать'}</button>${editing?`<button class="secondary" data-thaw-closing-cancel="${esc(key)}" ${saving?'disabled':''}>Отмена</button>`:''}</div></div>`;
-    return `<div class="details closing-details"><div class="details-grid"><div><b>Тип</b><br>${esc(typeName(d.doc_type))}</div><div><b>Точка</b><br>${esc(d.to_point||'—')}</div></div>${previewButton}${controls}${state.closingSaveErrors?.[key]?`<p class="message" role="alert" style="margin:12px;color:#9d2424;white-space:pre-wrap">Ошибка сохранения: ${esc(state.closingSaveErrors[key])}</p>`:''}<div class="closing-wrap"><table class="closing-table"><thead><tr><th>Номенклатура</th><th>Остаток на начало</th><th>Пришло</th>${split?'<th>С кухни</th>':''}<th>Доступно</th><th>Из заморозки</th><th>Остаток</th><th>Утиль</th><th>Заморозка</th><th>Итого продано</th></tr></thead><tbody>${body}<tr class="closing-total"><td>ИТОГО</td><td>${fmt(sum('opening_qty'))}</td><td>${fmt(sum('received_qty')-(split?kitchenTotal:0))}</td>${split?`<td>${fmt(kitchenTotal)}</td>`:''}<td>${fmt(sum('available_qty'))}</td><td>${fmt(sum('thawed_qty'))}</td><td>${fmt(sum('leftover_qty'))}</td><td>${fmt(sum('waste_qty'))}</td><td>${fmt(sum('frozen_qty'))}</td><td>${fmt(sum('sold_qty'))}</td></tr></tbody></table></div></div>`;
+    const controls=`<div class="edit-toolbar closing-toolbar"><div class="edit-buttons"><button class="primary" data-thaw-closing-edit="${esc(key)}" ${saving?'disabled':''}>${saving?'Сохраняем…':editing?'Сохранить':'Редактировать'}</button>${editing?`<button class="secondary" data-closing-add-row="${esc(key)}" ${saving?'disabled':''}>+ Добавить блюдо</button><button class="secondary" data-thaw-closing-cancel="${esc(key)}" ${saving?'disabled':''}>Отмена</button>`:''}</div></div>`;
+    return `<div class="details closing-details"><div class="details-grid"><div><b>Тип</b><br>${esc(typeName(d.doc_type))}</div><div><b>Точка</b><br>${esc(d.to_point||'—')}</div></div>${previewButton}${controls}${state.closingSaveErrors?.[key]?`<p class="message" role="alert" style="margin:12px;color:#9d2424;white-space:pre-wrap">Ошибка сохранения: ${esc(state.closingSaveErrors[key])}</p>`:''}<div class="closing-wrap"><table class="closing-table"><thead><tr><th>Номенклатура</th><th>Остаток на начало</th><th>Пришло</th>${split?'<th>С кухни</th>':''}<th>Доступно</th><th>Из заморозки</th><th>Остаток</th><th>Утиль</th><th>Заморозка</th><th>Итого продано</th></tr></thead><tbody>${body}${newRows}<tr class="closing-total"><td>ИТОГО</td><td>${fmt(sum('opening_qty'))}</td><td>${fmt(sum('received_qty')-(split?kitchenTotal:0))}</td>${split?`<td>${fmt(kitchenTotal)}</td>`:''}<td>${fmt(sum('available_qty'))}</td><td>${fmt(sum('thawed_qty'))}</td><td>${fmt(sum('leftover_qty'))}</td><td>${fmt(sum('waste_qty'))}</td><td>${fmt(sum('frozen_qty'))}</td><td>${fmt(sum('sold_qty'))}</td></tr></tbody></table></div></div>`;
   };
 
   const prevBind=bind;
@@ -89,6 +110,10 @@
     prevBind();
     document.querySelectorAll('[data-thaw-closing-edit]').forEach(b=>b.onclick=()=>{const d=(state.data?.documents||[]).find(x=>historyKey(x)===b.dataset.thawClosingEdit);if(!d)return;state.thawClosingEditing.has(historyKey(d))?saveEdit(d):beginEdit(d)});
     document.querySelectorAll('[data-thaw-closing-cancel]').forEach(b=>b.onclick=()=>{const d=(state.data?.documents||[]).find(x=>historyKey(x)===b.dataset.thawClosingCancel);if(d)cancelEdit(d)});
+    document.querySelectorAll('[data-closing-add-row]').forEach(b=>b.onclick=()=>{const k=b.dataset.closingAddRow;(state.closingAddedRows[k]||(state.closingAddedRows[k]=[])).push({dish_id:'',thawed:0,leftover:0,waste:0,frozen:0});render()});
+    document.querySelectorAll('[data-closing-remove-added]').forEach(b=>b.onclick=()=>{state.closingAddedRows[b.dataset.closingRemoveAdded].splice(Number(b.dataset.addedIndex),1);render()});
+    document.querySelectorAll('[data-closing-added-dish]').forEach(el=>el.onchange=()=>{state.closingAddedRows[el.dataset.closingAddedDish][Number(el.dataset.addedIndex)].dish_id=el.value});
+    document.querySelectorAll('[data-closing-added-field]').forEach(el=>el.oninput=()=>{state.closingAddedRows[el.dataset.addedKey][Number(el.dataset.addedIndex)][el.dataset.closingAddedField]=el.value});
     document.querySelectorAll('[data-thaw-draft]').forEach(inp=>inp.oninput=()=>state.thawClosingDrafts[inp.dataset.thawDraft]=inp.value);
   };
   if(state.data)render();
