@@ -1,0 +1,29 @@
+name: Staging portability audit
+
+on:
+  push:
+    branches: [stolovaya-staging-20261031]
+    paths:
+      - "tools/audit-host-dependencies.mjs"
+      - ".github/workflows/staging-portability-audit.yml"
+      - "admin/**"
+      - "live/**"
+      - "buffet/**"
+      - "app.js"
+      - "yandex-function/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  read-only-host-inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Report runtime dependencies (no external API calls)
+        run: node tools/audit-host-dependencies.mjs
