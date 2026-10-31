@@ -33,6 +33,8 @@
     catch(e){log('request_error',{id,endpoint,durationMs:Math.round(performance.now()-t),error:e?.name||'NetworkError'});throw e}
   };
   setInterval(async()=>{
+    // Journal startup must never compete with diagnostics uploads.
+    if(section==='journal')return;
     if(sending||!pending.length||!apiHeaders)return;
     const token=sessionStorage.getItem('stolovaya:admin');
     if(!token)return;
