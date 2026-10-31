@@ -10,13 +10,13 @@ const diagDeviceId=(()=>{try{const key='stolovaya:diag-device-id';let id=localSt
 const diagSessionId='s'+Array.from(crypto.getRandomValues(new Uint8Array(6)),x=>x.toString(16).padStart(2,'0')).join('');
 const diagPage='admin/journal|'+diagDeviceId+'|'+diagSessionId;
 const rpcMetrics=[];
-function recordRpc(m){rpcMetrics.unshift(m);if(rpcMetrics.length>40)rpcMetrics.length=40;console.info('[journal rpc]',m);if(state.token&&m.name!=='admin_record_client_diagnostic'){fetch(API+'/admin_record_client_diagnostic',{method:'POST',headers:{apikey:KEY,'Content-Type':'application/json'},body:JSON.stringify({p_token:state.token,p_event_type:m.error?'error':'rpc',p_rpc_name:m.name,p_duration_ms:m.totalMs,p_status_code:m.status||null,p_error_type:m.error||null,p_page:diagPage,p_attempt:m.attempt}),signal:AbortSignal.timeout(4000),keepalive:true}).catch(()=>{})}}
+function recordRpc(m){rpcMetrics.unshift(m);if(rpcMetrics.length>40)rpcMetrics.length=40;console.info('[journal rpc]',m);if(state.token&&m.name!=='admin_record_client_diagnostic'&&m.error){fetch(API+'/admin_record_client_diagnostic',{method:'POST',headers:{apikey:KEY,'Content-Type':'application/json'},body:JSON.stringify({p_token:state.token,p_event_type:m.error?'error':'rpc',p_rpc_name:m.name,p_duration_ms:m.totalMs,p_status_code:m.status||null,p_error_type:m.error||null,p_page:diagPage,p_attempt:m.attempt}),signal:AbortSignal.timeout(4000),keepalive:true}).catch(()=>{})}}
 async function rpc(name,body){
- const safe=SAFE_READ_RPC.has(name),maxAttempts=safe?2:1;
+ const safe=SAFE_READ_RPC.has(name),maxAttempts=safe&&name!=='admin_document_journal_list'?2:1;
  for(let attempt=1;attempt<=maxAttempts;attempt++){
   const started=performance.now();let responseAt=0,status=0;if(name==='admin_journal_document_detail'&&state.token){fetch(API+'/admin_record_client_diagnostic',{method:'POST',headers:{apikey:KEY,'Content-Type':'application/json'},body:JSON.stringify({p_token:state.token,p_event_type:'start',p_rpc_name:name,p_duration_ms:0,p_status_code:null,p_error_type:null,p_page:diagPage,p_attempt:attempt}),signal:AbortSignal.timeout(4000)}).catch(()=>{})}
   try{
-   const r=await fetch(`${API}/${name}`,{method:'POST',headers:{apikey:KEY,'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(12000),cache:'no-store'});
+   const r=await fetch(`${API}/${name}`,{method:'POST',headers:{apikey:KEY,'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(name==='admin_document_journal_list'?9000:12000),cache:'no-store'});
    responseAt=performance.now();status=r.status;
    const d=await r.json().catch(()=>null);
    recordRpc({name,attempt,status,headersMs:Math.round(responseAt-started),bodyMs:Math.round(performance.now()-responseAt),totalMs:Math.round(performance.now()-started),at:new Date().toISOString()});
