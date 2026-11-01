@@ -231,8 +231,7 @@ async function loadPoints(){
  if(!ready||!state.token)return;
  const r=await rpc("catalog_admin_directory",{p_token:state.token,
   p_kind:"warehouses",p_search:"",p_limit:200,p_offset:0});
- state.points=(r.rows||[]).filter(x=>x.isActive&&
-   !["BUKHARA_KITCHEN","PRAVDA_KITCHEN"].includes(x.code));
+ state.points=(r.rows||[]).filter(x=>x.isActive);
 }
 async function signIn(event){
  event.preventDefault();
@@ -325,7 +324,7 @@ function drawEmployeeEditor(){
  const points=pointsEditor();
  const pointArea=node("section",{hidden:role.value==="admin"},[
    text("b","Рабочие точки буфетчика"),
-   text("p","Можно назначить одну или несколько точек; кухни исключены.","help"),points.box
+   text("p","Можно назначить любую активную точку, в том числе кухню, если сотрудник действительно на ней работает.","help"),points.box
  ]);
  role.addEventListener("change",()=>{
    pointArea.hidden=role.value==="admin";
@@ -436,7 +435,7 @@ async function registerNewIikoWarehouse(){
    return;
  }
  if(!["sales","kitchen"].includes(draft.purpose)){
-   notice("Укажите тип склада: раздача или кухня",true);return;
+   notice("Укажите основное назначение склада (не запрещает приход или расход)",true);return;
  }
  if(!/^\d{4}-\d{2}-\d{2}$/.test(draft.effectiveFrom)){
    notice("Укажите дату подключения",true);return;
@@ -483,10 +482,10 @@ function drawNewWarehouseDraft(){
    node("div",{class:"form-grid"},[
      field("Название в iiko (не редактируется)",name),
      field("Новый код точки Столовой",code),
-     field("Тип склада",purpose),
+     field("Основное назначение (не ограничивает движение)",purpose),
      field("Дата начала связи",date)
    ]),
-   node("div",{class:"notice",text:"Новая точка создаётся неактивной. Пользователи не смогут выполнять по ней операции, пока не проверены учёт остатков, перемещения, закрытие дня, доступ сотрудников и интеграция."}),
+   node("div",{class:"notice",text:"Новая точка сначала неактивна до проверки. После активации она сможет и принимать, и отпускать товары независимо от основного назначения."}),
    node("div",{class:"actions"},[
      btn("Добавить в справочник",registerNewIikoWarehouse,"btn",state.busy)
    ])
@@ -588,7 +587,7 @@ function drawWarehouseMapping(){
      badge("Привязано: "+linked+" из "+state.warehouseMapRows.length)
    ]),
    node("div",{class:"notice",text:
-     "Защита: «Бухара раздача» нельзя связать с БК, а «Правда кухня» — с ПР. Отсутствующие соответствия не угадываются. Старые маршруты не изменяются."}),
+     "Важна идентичность складов: «Бухара раздача» и «Бухара кухня» — разные ID. Но оба склада могут получать и отправлять товары; направление выбирается в самом документе."}),
    node("div",{class:"scroll"},[table]),
    text("p","Назначение начинает действовать с текущей или будущей даты. Перенос прошлых документов запрещён. Изменение привязки записывается в журнал.","foot"),
    ...(state.warehouseMapHistory.length?[node("details",{},[
