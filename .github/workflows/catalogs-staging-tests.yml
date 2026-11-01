@@ -4,7 +4,9 @@ on:
     branches: [stolovaya-staging-20261031]
     paths:
       - "admin/catalogs/**"
+      - "admin/closing-audit/**"
       - "tests/catalogs.test.mjs"
+      - "tests/closing-audit.test.mjs"
       - ".github/workflows/catalogs-staging-tests.yml"
   workflow_dispatch:
 permissions:
@@ -21,3 +23,5 @@ jobs:
       - run: node --check admin/catalogs/catalogs.js
       - run: node --check admin/catalogs/domain.mjs
       - run: node --test tests/catalogs.test.mjs
+      - run: node --check admin/closing-audit/audit.js
+      - run: node --test tests/closing-audit.test.mjs
