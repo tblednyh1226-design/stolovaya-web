@@ -1,4 +1,4 @@
-import { validateEmployee,employeeRole,employeePointCodes,summarizeIikoPreview } from "./domain.mjs";
+import { validateEmployee,employeeRole,employeePointCodes,summarizeIikoPreview,buildManualIikoSelection } from "./domain.mjs";
 const root=document.getElementById("catalogs-app");
 const cfg=window.STOLOVAYA_CATALOGS_CONFIG||{};
 const ready=Boolean(cfg.rpcBase&&cfg.catalogSyncUrl&&cfg.publishableKey&&
@@ -106,15 +106,9 @@ function manualChoice(id,change){
 }
 async function commitManualChoices(){
  if(!state.owner||!state.manualChoices.size)return;
- const choices=[...state.manualChoices.entries()].map(([iikoId,x])=>({
-   iikoId,action:x.action,...(x.action==="link"?{dishId:x.dishId}:{})
- }));
- if(choices.length>100){notice("Выберите не более 100 позиций за один раз",true);return}
- if(choices.some(x=>!["create","link"].includes(x.action)||
-    (x.action==="link"&&!x.dishId))){
-   notice("Для каждой выбранной позиции укажите: создать новое блюдо или связать с существующим",true);
-   return;
- }
+ let choices;
+ try { choices=buildManualIikoSelection(state.manualChoices); }
+ catch(error){ notice(error.message,true);return; }
  const create=choices.filter(x=>x.action==="create").length;
  const link=choices.length-create;
  const description="Вы подтверждаете изменения рабочего справочника внутри тестовой базы:\n"+
