@@ -8,7 +8,7 @@ const ready=Boolean(cfg.rpcBase&&cfg.catalogSyncUrl&&cfg.publishableKey&&
 const titles={dishes:"Номенклатура",warehouses:"Склады",employees:"Сотрудники"};
 const state={token:ready?(sessionStorage.getItem("stolovaya:catalog-admin")||""):"",
  name:sessionStorage.getItem("stolovaya:catalog-name")||"",owner:false,kind:"dishes",
- search:"",offset:0,total:0,limit:50,rows:[],points:[],warehouseExternal:[],edit:null,preview:null,
+ search:"",offset:0,total:0,limit:50,rows:[],points:[],warehouseExternal:[],iikoProducts:[],iikoProductTotal:0,edit:null,preview:null,
  message:"",error:false,busy:false};
 const node=(tag,attrs={},children=[])=>{
   const n=document.createElement(tag);
@@ -66,6 +66,11 @@ async function load(){
    p_kind:state.kind,p_search:state.search,p_limit:state.limit,p_offset:state.offset});
  state.rows=Array.isArray(r.rows)?r.rows:[];
  state.total=Number(r.total||0);state.owner=Boolean(r.isOwner);
+ if(state.kind==="dishes"){
+   const ext=await rpc("catalog_admin_iiko_products",{p_token:state.token,p_search:"",p_limit:200});
+   state.iikoProducts=Array.isArray(ext.rows)?ext.rows:[];
+   state.iikoProductTotal=Number(ext.total||0);
+ }
  if(state.kind==="warehouses"){
    const ext=await rpc("catalog_admin_iiko_warehouses",{p_token:state.token});
    state.warehouseExternal=Array.isArray(ext.rows)?ext.rows:[];
@@ -238,7 +243,7 @@ function drawPreview(){
   ]),
   text("p",p.kind==="warehouses"?
     "Реальные точки, складские маршруты, БК/БР/ПК/ПР не переназначаются автоматически.":
-    "Существующие идентификаторы блюд сохраняются. Закрытые документы не пересчитываются.","help"),
+    "Подтверждение обновит только внешний справочник iiko. Блюда Столовой и история документов не изменяются.","help"),
   text("p","Показаны первые "+valid+" проверенных записей.","help"),
   node("div",{class:"scroll"},[list]),
   node("div",{class:"actions"},[
@@ -290,7 +295,7 @@ function drawView(){
   node("div",{},[text("h2",titles[state.kind]),
     text("p",state.kind==="warehouses"?
       "Список складов iiko обновляется отдельно от привязки к точкам.":
-      state.kind==="dishes"?"Сопоставление товаров по внешним идентификаторам iiko.":
+      state.kind==="dishes"?"Импорт iiko хранится отдельно от блюд Столовой: новые ингредиенты не попадают в блюда автоматически.":
       "Уволенных помечаем на удаление, документы не стираем.","help")]),
   node("div",{class:"label-list"},[
    ...(state.kind!=="employees"?[btn("Обновить из iiko",syncIiko,"btn",!ready||state.busy)]:[]),
@@ -314,6 +319,24 @@ function drawView(){
    node("div",{class:"label-list"},[prev,next])
   ])
  ]));
+ if(state.kind==="dishes"){
+  const headers=["Номенклатура из iiko","Код","Тип iiko","Связь с блюдом"];
+  const table=node("table",{class:"data-table"},[
+   node("thead",{},[node("tr",{},headers.map(x=>text("th",x)))]),
+   node("tbody",{},state.iikoProducts.length?
+     state.iikoProducts.map(p=>node("tr",{},[
+      text("td",p.name),text("td",p.code||"—"),
+      text("td",p.productType||"—"),
+      node("td",{},[badge(p.inStolovaya?"Связано":"Требует сопоставления",!p.inStolovaya)])
+     ])):[node("tr",{},[node("td",{colspan:4,class:"empty",
+       text:"Данные iiko ещё не загружены"})])])
+  ]);
+  wrapper.appendChild(node("section",{class:"card",style:"margin-top:18px"},[
+   text("h2","Номенклатура iiko · "+state.iikoProductTotal+" позиций"),
+   text("p","До ручного сопоставления продукты iiko не становятся блюдами Столовой и не участвуют в движениях.","help"),
+   node("div",{class:"scroll"},[table])
+  ]));
+ }
  if(state.kind==="warehouses"){
   const cols=["Название склада в iiko","Артикул iiko","Возможный маршрут","ID iiko"];
   const table=node("table",{class:"data-table"},[
