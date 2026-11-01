@@ -74,3 +74,14 @@ test("warehouse mapping is manual by iiko external ID and effective date",()=>{
  assert.ok(source.includes('state.owner'));
  assert.ok(!source.includes("admin_auto_assign_iiko_warehouses"));
 });
+
+test("new warehouse onboarding is explicit and remains inactive pending integration",()=>{
+ assert.ok(source.includes("catalog_admin_register_iiko_warehouse"));
+ assert.ok(source.includes("state.newWarehouseDraft"));
+ assert.ok(source.includes('type:"date"'));
+ assert.ok(source.includes('p_new_point_code:draft.code'));
+ assert.ok(source.includes('p_purpose:draft.purpose'));
+ assert.ok(source.includes('requiresIntegrationChecks')||source.includes('pending_integration'));
+ assert.ok(source.includes("операции, пока не проверены")||source.includes("неактивной"));
+ assert.ok(source.includes("Подключение нового склада из iiko"));
+});
