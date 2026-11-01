@@ -9,7 +9,7 @@ const titles={dishes:"Номенклатура",warehouses:"Склады",employ
 const state={token:ready?(sessionStorage.getItem("stolovaya:catalog-admin")||""):"",
  name:sessionStorage.getItem("stolovaya:catalog-name")||"",owner:false,kind:"dishes",
  search:"",offset:0,total:0,limit:50,rows:[],points:[],warehouseExternal:[],warehouseMapRows:[],warehouseMapPoints:[],
- warehouseMapHistory:[],warehouseMapSelection:new Map(),warehouseEffectiveDates:new Map(),
+ warehouseMapHistory:[],warehouseMapSelection:new Map(),warehouseEffectiveDates:new Map(),newWarehouseDraft:null,
  candidateRows:[],candidateTotal:0,candidateSearch:"",candidateOffset:0,
  candidateLimit:40,candidateOnlyNew:true,manualChoices:new Map(),dishOptions:[],
  iikoProducts:[],iikoProductTotal:0,edit:null,preview:null,
@@ -421,6 +421,78 @@ async function applyPreview(){
  });
 }
 
+
+const todayMoscow=()=>{
+ const parts=new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Moscow",
+  year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date());
+ const p=Object.fromEntries(parts.filter(x=>x.type!=="literal").map(x=>[x.type,x.value]));
+ return p.year+"-"+p.month+"-"+p.day;
+};
+async function registerNewIikoWarehouse(){
+ if(!state.owner||!state.newWarehouseDraft)return;
+ const draft=state.newWarehouseDraft;
+ if(!/^[A-Z][A-Z0-9_]{2,31}$/.test(draft.code)){
+   notice("Код точки: 3–32 символа, латинские заглавные буквы, цифры и _",true);
+   return;
+ }
+ if(!["sales","kitchen"].includes(draft.purpose)){
+   notice("Укажите тип склада: раздача или кухня",true);return;
+ }
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(draft.effectiveFrom)){
+   notice("Укажите дату подключения",true);return;
+ }
+ const warning="Подключить новый склад из iiko в справочник Столовой?\n\n"+
+   "Склад: "+draft.name+"\nID iiko: "+draft.iikoId+
+   "\nКод новой точки: "+draft.code+"\nНазначение: "+
+   (draft.purpose==="kitchen"?"Кухня":"Раздача / склад")+
+   "\nДата: "+draft.effectiveFrom+
+   "\n\nСначала точка будет НЕАКТИВНОЙ до проверки перемещений, остатков, закрытия дня и iiko.";
+ if(!window.confirm(warning))return;
+ await operation(async()=>{
+   const r=await rpc("catalog_admin_register_iiko_warehouse",{
+     p_token:state.token,p_iiko_id:draft.iikoId,
+     p_new_point_code:draft.code,p_purpose:draft.purpose,
+     p_effective_from:draft.effectiveFrom
+   });
+   state.newWarehouseDraft=null;
+   await load();
+   state.message="Склад "+r.pointName+" добавлен с кодом "+r.pointCode+
+    ". Пока неактивен: сначала проверим все алгоритмы новой точки.";
+ });
+}
+function drawNewWarehouseDraft(){
+ if(!state.newWarehouseDraft)return null;
+ const draft=state.newWarehouseDraft;
+ const name=node("input",{value:draft.name,disabled:true});
+ const code=node("input",{value:draft.code,placeholder:"Например, NEVSKY_01"});
+ code.maxLength=32;
+ code.addEventListener("input",()=>draft.code=code.value.trim().toUpperCase());
+ const purpose=node("select",{},[
+   node("option",{value:"sales",text:"Раздача / склад"}),
+   node("option",{value:"kitchen",text:"Кухня"})
+ ]);
+ purpose.value=draft.purpose;purpose.addEventListener("change",()=>draft.purpose=purpose.value);
+ const date=node("input",{type:"date",value:draft.effectiveFrom});
+ date.addEventListener("change",()=>draft.effectiveFrom=date.value);
+ return node("section",{class:"card stack",style:"margin-top:18px"},[
+   node("div",{class:"heading"},[
+     text("h2","Подключение нового склада из iiko"),
+     btn("Отмена",()=>{state.newWarehouseDraft=null;render()},"btn light")
+   ]),
+   text("p","Склад уже получен из iiko. Задайте уникальный код нашей точки, её назначение и дату. Фактическую активацию сделаем только после проверки алгоритмов.","help"),
+   node("div",{class:"form-grid"},[
+     field("Название в iiko (не редактируется)",name),
+     field("Новый код точки Столовой",code),
+     field("Тип склада",purpose),
+     field("Дата начала связи",date)
+   ]),
+   node("div",{class:"notice",text:"Новая точка создаётся неактивной. Пользователи не смогут выполнять по ней операции, пока не проверены учёт остатков, перемещения, закрытие дня, доступ сотрудников и интеграция."}),
+   node("div",{class:"actions"},[
+     btn("Добавить в справочник",registerNewIikoWarehouse,"btn",state.busy)
+   ])
+ ]);
+}
+
 async function approveWarehouseMap(warehouse){
  if(!state.owner||!ready)return;
  const code=state.warehouseMapSelection.get(warehouse.iikoId)||"";
@@ -466,7 +538,9 @@ function drawWarehouseMapping(){
   const controls=node("div",{class:"label-list"});
   if(assigned){
     controls.appendChild(badge(w.mappedPointName+" · "+w.purpose));
-    if(state.owner)controls.appendChild(btn("Завершить",()=>endWarehouseMap(w),
+    if(w.pointStage==="pending_integration")controls.appendChild(badge("Ожидает подключения",true));
+    if(state.owner&&w.pointStage!=="pending_integration")
+      controls.appendChild(btn("Завершить",()=>endWarehouseMap(w),
       "btn light small",state.busy));
   }else if(state.owner){
     const choice=node("select",{onChange:e=>state.warehouseMapSelection.set(w.iikoId,e.target.value)},[
@@ -482,6 +556,11 @@ function drawWarehouseMapping(){
     date.title="Дата начала соответствия (не ранее текущего дня по Москве)";
     controls.appendChild(date);
     controls.appendChild(btn("Привязать",()=>approveWarehouseMap(w),"btn small",state.busy));
+    controls.appendChild(btn("Новая точка",()=>{
+      state.newWarehouseDraft={iikoId:w.iikoId,name:w.iikoName,code:"",
+        purpose:"sales",effectiveFrom:todayMoscow()};
+      render();
+    },"btn light small",state.busy));
   }else controls.appendChild(badge("Не привязан",true));
   return node("tr",{},[
     node("td",{},[text("b",w.iikoName),text("div",w.iikoCode||"Нет артикула","mono")]),
@@ -576,7 +655,10 @@ function drawView(){
   ])
  ]));
  if(state.kind==="dishes")wrapper.appendChild(drawManualSelection());
- if(state.kind==="warehouses")wrapper.appendChild(drawWarehouseMapping());
+ if(state.kind==="warehouses"){
+   wrapper.appendChild(drawWarehouseMapping());
+   if(state.newWarehouseDraft)wrapper.appendChild(drawNewWarehouseDraft());
+ }
  if(state.edit)wrapper.appendChild(drawEmployeeEditor());
  if(state.preview)wrapper.appendChild(drawPreview());
  wrapper.appendChild(text("p","Пометка на удаление сохраняет историю. Обновления iiko применяются только после подтверждения владельца.","foot"));
