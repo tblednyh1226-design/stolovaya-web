@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { validateEmployee,employeeRole,employeePointCodes,summarizeIikoPreview } from "../admin/catalogs/domain.mjs";
+import { validateEmployee,employeeRole,employeePointCodes,summarizeIikoPreview,buildManualIikoSelection } from "../admin/catalogs/domain.mjs";
 const here=path.dirname(fileURLToPath(import.meta.url));
 const source=fs.readFileSync(path.join(here,"../admin/catalogs/catalogs.js"),"utf8");
 const html=fs.readFileSync(path.join(here,"../admin/catalogs/index.html"),"utf8");
@@ -40,4 +40,27 @@ test("frontend has no fallback access to production",()=>{
  assert.ok(source.includes('sessionStorage.getItem("stolovaya:catalog-admin")'));
  assert.ok(!source.includes("SUPABASE_SERVICE_ROLE_KEY"));
  assert.ok(!html.includes("sb_publishable_"));
+});
+
+test("manual iiko selection sends only checked items with explicit actions",()=>{
+ const choices=new Map([
+  ["11111111-1111-1111-1111-111111111111",{action:"create"}],
+  ["22222222-2222-2222-2222-222222222222",{action:"link",dishId:"33333333-3333-3333-3333-333333333333"}],
+ ]);
+ assert.deepEqual(buildManualIikoSelection(choices),[
+  {iikoId:"11111111-1111-1111-1111-111111111111",action:"create"},
+  {iikoId:"22222222-2222-2222-2222-222222222222",action:"link",
+   dishId:"33333333-3333-3333-3333-333333333333"}
+ ]);
+});
+test("reject unspecified action and link without dish UUID",()=>{
+ assert.throws(()=>buildManualIikoSelection(new Map()),/Выберите от 1 до 100/);
+ assert.throws(()=>buildManualIikoSelection(new Map([["x",{action:""}]])),/Для каждой позиции/);
+ assert.throws(()=>buildManualIikoSelection(new Map([["x",{action:"link",dishId:"foo"}]])),/Выберите существующее/);
+});
+test("manual selection UI uses owner-approved RPC",()=>{
+ assert.ok(source.includes("catalog_admin_iiko_candidates"));
+ assert.ok(source.includes("catalog_admin_select_iiko_products"));
+ assert.ok(source.includes("manualChoices:new Map()"));
+ assert.ok(source.includes("if(!state.owner||!state.manualChoices.size)return"));
 });
