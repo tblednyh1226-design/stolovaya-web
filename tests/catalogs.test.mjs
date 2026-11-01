@@ -64,3 +64,13 @@ test("manual selection UI uses owner-approved RPC",()=>{
  assert.ok(source.includes("manualChoices:new Map()"));
  assert.ok(source.includes("if(!state.owner||!state.manualChoices.size)return"));
 });
+
+test("warehouse mapping is manual by iiko external ID and effective date",()=>{
+ assert.ok(source.includes("catalog_admin_warehouse_mappings"));
+ assert.ok(source.includes("catalog_admin_map_iiko_warehouse"));
+ assert.ok(source.includes("catalog_admin_end_iiko_warehouse_link"));
+ assert.ok(source.includes("state.warehouseMapSelection.get(warehouse.iikoId)"));
+ assert.ok(source.includes('type:"date"'));
+ assert.ok(source.includes('state.owner'));
+ assert.ok(!source.includes("admin_auto_assign_iiko_warehouses"));
+});
