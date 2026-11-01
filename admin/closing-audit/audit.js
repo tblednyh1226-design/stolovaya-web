@@ -120,7 +120,7 @@ if(!isolated||!token){
  root.appendChild(result);
  rpc("catalog_admin_warehouse_mappings",{p_token:token}).then(x=>{
    for(const p of x.points||[]){
-     if(p.purpose!=="sales"||p.isActive===false)continue;
+     if(p.isActive===false)continue;
      const opt=el("option",p.pointName+" ("+p.pointCode+")");
      opt.value=p.pointCode;point.appendChild(opt);
    }
