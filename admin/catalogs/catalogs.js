@@ -8,7 +8,10 @@ const ready=Boolean(cfg.rpcBase&&cfg.catalogSyncUrl&&cfg.publishableKey&&
 const titles={dishes:"Номенклатура",warehouses:"Склады",employees:"Сотрудники"};
 const state={token:ready?(sessionStorage.getItem("stolovaya:catalog-admin")||""):"",
  name:sessionStorage.getItem("stolovaya:catalog-name")||"",owner:false,kind:"dishes",
- search:"",offset:0,total:0,limit:50,rows:[],points:[],warehouseExternal:[],iikoProducts:[],iikoProductTotal:0,edit:null,preview:null,
+ search:"",offset:0,total:0,limit:50,rows:[],points:[],warehouseExternal:[],
+ candidateRows:[],candidateTotal:0,candidateSearch:"",candidateOffset:0,
+ candidateLimit:40,candidateOnlyNew:true,manualChoices:new Map(),dishOptions:[],
+ iikoProducts:[],iikoProductTotal:0,edit:null,preview:null,
  message:"",error:false,busy:false};
 const node=(tag,attrs={},children=[])=>{
   const n=document.createElement(tag);
@@ -66,16 +69,167 @@ async function load(){
    p_kind:state.kind,p_search:state.search,p_limit:state.limit,p_offset:state.offset});
  state.rows=Array.isArray(r.rows)?r.rows:[];
  state.total=Number(r.total||0);state.owner=Boolean(r.isOwner);
- if(state.kind==="dishes"){
-   const ext=await rpc("catalog_admin_iiko_products",{p_token:state.token,p_search:"",p_limit:200});
-   state.iikoProducts=Array.isArray(ext.rows)?ext.rows:[];
-   state.iikoProductTotal=Number(ext.total||0);
- }
+ if(state.kind==="dishes")await loadCandidates();
  if(state.kind==="warehouses"){
    const ext=await rpc("catalog_admin_iiko_warehouses",{p_token:state.token});
    state.warehouseExternal=Array.isArray(ext.rows)?ext.rows:[];
  }
 }
+
+async function loadCandidates(){
+ if(!ready||!state.token)return;
+ const data=await rpc("catalog_admin_iiko_candidates",{
+   p_token:state.token,p_search:state.candidateSearch,
+   p_limit:state.candidateLimit,p_offset:state.candidateOffset,
+   p_only_unlinked:state.candidateOnlyNew
+ });
+ state.candidateRows=Array.isArray(data.rows)?data.rows:[];
+ state.candidateTotal=Number(data.total||0);
+}
+async function ensureDishOptions(){
+ if(state.dishOptions.length)return;
+ const all=[];
+ for(let offset=0;offset<2000;offset+=200){
+   const r=await rpc("catalog_admin_directory",{p_token:state.token,p_kind:"dishes",
+     p_search:"",p_limit:200,p_offset:offset});
+   const rows=Array.isArray(r.rows)?r.rows:[];
+   all.push(...rows);
+   if(!rows.length||all.length>=Number(r.total)||rows.length<200)break;
+ }
+ state.dishOptions=all;
+}
+function manualChoice(id,change){
+ const previous=state.manualChoices.get(id)||{action:"",dishId:""};
+ const next={...previous,...change};
+ state.manualChoices.set(id,next);
+ render();
+}
+async function commitManualChoices(){
+ if(!state.owner||!state.manualChoices.size)return;
+ const choices=[...state.manualChoices.entries()].map(([iikoId,x])=>({
+   iikoId,action:x.action,...(x.action==="link"?{dishId:x.dishId}:{})
+ }));
+ if(choices.length>100){notice("Выберите не более 100 позиций за один раз",true);return}
+ if(choices.some(x=>!["create","link"].includes(x.action)||
+    (x.action==="link"&&!x.dishId))){
+   notice("Для каждой выбранной позиции укажите: создать новое блюдо или связать с существующим",true);
+   return;
+ }
+ const create=choices.filter(x=>x.action==="create").length;
+ const link=choices.length-create;
+ const description="Вы подтверждаете изменения рабочего справочника внутри тестовой базы:\n"+
+   "Создать блюд: "+create+"\nСвязать с существующими: "+link+
+   "\nОстальные позиции iiko останутся без изменений. Продолжить?";
+ if(!window.confirm(description))return;
+ await operation(async()=>{
+   const r=await rpc("catalog_admin_select_iiko_products",{
+     p_token:state.token,p_choices:choices
+   });
+   state.manualChoices.clear();state.dishOptions=[];
+   await load();
+   state.message="Подтверждено вручную: новых блюд "+r.created+", связей "+r.linked+
+      ". Исторические документы не менялись.";
+ });
+}
+function drawManualSelection(){
+ if(state.kind!=="dishes")return null;
+ const head=node("div",{class:"heading"},[
+   node("div",{},[
+     text("h2","Выбор номенклатуры iiko вручную"),
+     text("p","Ни одна новая позиция не попадёт в «Столовую» без выбора и отдельного подтверждения.","help")
+   ]),
+   badge("Внешний список: "+state.candidateTotal)
+ ]);
+ const filter=input("Поиск в iiko: название или код",state.candidateSearch,"search");
+ filter.addEventListener("change",()=>{state.candidateSearch=filter.value.trim();
+   state.candidateOffset=0;void operation(loadCandidates)});
+ const onlyNew=node("input",{type:"checkbox",checked:state.candidateOnlyNew,
+  onChange:ev=>{state.candidateOnlyNew=ev.target.checked;state.candidateOffset=0;
+    void operation(loadCandidates)}
+ });
+ const toolbar=node("div",{class:"toolbar"},[
+   filter,
+   node("label",{class:"label-list"},[onlyNew,text("span","Только несвязанные")])
+ ]);
+ const header=["Выбрать","Позиция iiko","Тип","Проверка совпадений","Действие с блюдом"];
+ const rows=state.candidateRows.map(p=>{
+   const selected=state.manualChoices.has(p.iikoId);
+   const choice=state.manualChoices.get(p.iikoId)||{action:"",dishId:""};
+   const isLinked=Boolean(p.linkedDishId);
+   const check=node("input",{type:"checkbox",checked:selected,disabled:!state.owner||isLinked,
+     onChange:ev=>{
+       if(ev.target.checked)state.manualChoices.set(p.iikoId,{action:"",dishId:""});
+       else state.manualChoices.delete(p.iikoId);
+       render();
+     }});
+   const status=isLinked?badge("Связано с "+p.linkedDishName):
+     p.codeConflict?badge("Совпадает артикул — свяжите",true):
+       p.nameMatch?badge("Похоже на существующее блюдо",true):badge("Новое");
+   let action=badge(isLinked?"Уже в Столовой":"Не выбрано",!isLinked);
+   if(selected&&!isLinked){
+     const select=node("select",{onChange:ev=>{
+       const value=ev.target.value;
+       state.manualChoices.set(p.iikoId,{action:value,dishId:""});
+       if(value==="link"){
+         void operation(async()=>{await ensureDishOptions()});
+       }else render();
+     }},[
+       node("option",{value:"",text:"Выберите действие"}),
+       node("option",{value:"create",text:"Добавить новое блюдо"}),
+       node("option",{value:"link",text:"Связать с существующим"})
+     ]);
+     select.value=choice.action;
+     action=node("div",{class:"stack"},[select]);
+     if(choice.action==="link"){
+       const choices=node("select",{onChange:ev=>{
+         state.manualChoices.set(p.iikoId,{action:"link",dishId:ev.target.value});
+       }},[
+         node("option",{value:"",text:"Выберите блюдо Столовой"}),
+         ...state.dishOptions.map(d=>node("option",{value:d.id,
+           text:d.name+(d.code?" ("+d.code+")":"")+(d.iikoId?" · iiko уже задан":"")}))
+       ]);
+       choices.value=choice.dishId||"";
+       action.appendChild(choices);
+       if(!state.dishOptions.length)action.appendChild(text("small","Загружаем список блюд…","help"));
+     }
+   }
+   return node("tr",{},[
+     node("td",{},[check]),
+     node("td",{},[text("b",p.name),text("div",p.code||"Без артикула","mono")]),
+     node("td",{},[text("span",p.productType||"—")]),
+     node("td",{},[status]),
+     node("td",{},[action])
+   ]);
+ });
+ const table=node("table",{class:"data-table"},[
+   node("thead",{},[node("tr",{},header.map(x=>text("th",x)))]),
+   node("tbody",{},rows.length?rows:[node("tr",{},[
+     node("td",{colspan:5,class:"empty",text:"Номенклатура iiko не загружена или все позиции связаны"})
+   ])])
+ ]);
+ const pager=node("div",{class:"pager"},[
+   text("span","Показано "+(state.candidateTotal?state.candidateOffset+1:0)+"–"+
+       Math.min(state.candidateOffset+state.candidateRows.length,state.candidateTotal)+
+       " из "+state.candidateTotal,"counts"),
+   node("div",{class:"label-list"},[
+     btn("Назад",()=>{state.candidateOffset=Math.max(0,state.candidateOffset-state.candidateLimit);
+       void operation(loadCandidates)},"btn light small",state.candidateOffset===0||state.busy),
+     btn("Далее",()=>{state.candidateOffset+=state.candidateLimit;
+       void operation(loadCandidates)},"btn light small",
+       state.candidateOffset+state.candidateLimit>=state.candidateTotal||state.busy)
+   ])
+ ]);
+ return node("section",{class:"card stack",style:"margin-top:18px"},[
+   head,toolbar,node("div",{class:"scroll"},[table]),pager,
+   node("div",{class:"actions"},[
+      text("span","Выбрано вручную: "+state.manualChoices.size,"counts"),
+      btn("Очистить выбор",()=>{state.manualChoices.clear();render()},"btn light",!state.manualChoices.size),
+      btn("Добавить выбранные в Столовую",commitManualChoices,"btn",
+          !state.owner||!state.manualChoices.size||state.busy)
+   ])
+ ]);
+}
+
 async function loadPoints(){
  if(!ready||!state.token)return;
  const r=await rpc("catalog_admin_directory",{p_token:state.token,
@@ -319,24 +473,7 @@ function drawView(){
    node("div",{class:"label-list"},[prev,next])
   ])
  ]));
- if(state.kind==="dishes"){
-  const headers=["Номенклатура из iiko","Код","Тип iiko","Связь с блюдом"];
-  const table=node("table",{class:"data-table"},[
-   node("thead",{},[node("tr",{},headers.map(x=>text("th",x)))]),
-   node("tbody",{},state.iikoProducts.length?
-     state.iikoProducts.map(p=>node("tr",{},[
-      text("td",p.name),text("td",p.code||"—"),
-      text("td",p.productType||"—"),
-      node("td",{},[badge(p.inStolovaya?"Связано":"Требует сопоставления",!p.inStolovaya)])
-     ])):[node("tr",{},[node("td",{colspan:4,class:"empty",
-       text:"Данные iiko ещё не загружены"})])])
-  ]);
-  wrapper.appendChild(node("section",{class:"card",style:"margin-top:18px"},[
-   text("h2","Номенклатура iiko · "+state.iikoProductTotal+" позиций"),
-   text("p","До ручного сопоставления продукты iiko не становятся блюдами Столовой и не участвуют в движениях.","help"),
-   node("div",{class:"scroll"},[table])
-  ]));
- }
+ if(state.kind==="dishes")wrapper.appendChild(drawManualSelection());
  if(state.kind==="warehouses"){
   const cols=["Название склада в iiko","Артикул iiko","Возможный маршрут","ID iiko"];
   const table=node("table",{class:"data-table"},[
