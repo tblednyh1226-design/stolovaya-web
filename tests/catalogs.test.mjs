@@ -82,6 +82,6 @@ test("new warehouse onboarding is explicit and remains inactive pending integrat
  assert.ok(source.includes('p_new_point_code:draft.code'));
  assert.ok(source.includes('p_purpose:draft.purpose'));
  assert.ok(source.includes('requiresIntegrationChecks')||source.includes('pending_integration'));
- assert.ok(source.includes("операции, пока не проверены")||source.includes("неактивной"));
+ assert.ok(source.includes("сначала неактивна")||source.includes("неактивной"));
  assert.ok(source.includes("Подключение нового склада из iiko"));
 });
