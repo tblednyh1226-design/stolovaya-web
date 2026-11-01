@@ -9,7 +9,7 @@ const titles={dishes:"Номенклатура",warehouses:"Склады",employ
 const state={token:ready?(sessionStorage.getItem("stolovaya:catalog-admin")||""):"",
  name:sessionStorage.getItem("stolovaya:catalog-name")||"",owner:false,kind:"dishes",
  search:"",offset:0,total:0,limit:50,rows:[],points:[],warehouseExternal:[],warehouseMapRows:[],warehouseMapPoints:[],
- warehouseMapHistory:[],warehouseMapSelection:new Map(),
+ warehouseMapHistory:[],warehouseMapSelection:new Map(),warehouseEffectiveDates:new Map(),
  candidateRows:[],candidateTotal:0,candidateSearch:"",candidateOffset:0,
  candidateLimit:40,candidateOnlyNew:true,manualChoices:new Map(),dishOptions:[],
  iikoProducts:[],iikoProductTotal:0,edit:null,preview:null,
@@ -427,15 +427,20 @@ async function approveWarehouseMap(warehouse){
  if(!code){notice("Выберите конкретную точку Столовой",true);return}
  const point=state.warehouseMapPoints.find(p=>p.pointCode===code);
  if(!point){notice("Неизвестная точка",true);return}
+ const effectiveFrom=state.warehouseEffectiveDates.get(warehouse.iikoId)||warehouse.nextAvailableFrom;
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(effectiveFrom||"")){
+   notice("Выберите дату начала действия соответствия",true);return;
+ }
  const message="Подтвердите новое соответствие:\nСклад iiko: "+warehouse.iikoName+
   "\nТочка Столовой: "+point.pointName+" ("+code+")"+
-  "\n\nДата начала: сегодня по Москве. Закрытые документы и прежние маршруты не изменятся.";
+  "\n\nДата начала: "+effectiveFrom+" по Москве. Закрытые документы и прежние маршруты не изменятся.";
  if(!window.confirm(message))return;
  await operation(async()=>{
   const r=await rpc("catalog_admin_map_iiko_warehouse",{
-    p_token:state.token,p_iiko_id:warehouse.iikoId,p_point_code:code,p_effective_from:null
+    p_token:state.token,p_iiko_id:warehouse.iikoId,p_point_code:code,p_effective_from:effectiveFrom
   });
   state.warehouseMapSelection.delete(warehouse.iikoId);
+  state.warehouseEffectiveDates.delete(warehouse.iikoId);
   await load();
   state.message="Склад "+warehouse.iikoName+" привязан к "+point.pointName+
     " с "+r.effectiveFrom+". История не пересчитана.";
@@ -472,6 +477,10 @@ function drawWarehouseMapping(){
     ]);
     choice.value=state.warehouseMapSelection.get(w.iikoId)||"";
     controls.appendChild(choice);
+    const date=node("input",{type:"date",value:state.warehouseEffectiveDates.get(w.iikoId)||
+      w.nextAvailableFrom||"",onChange:e=>state.warehouseEffectiveDates.set(w.iikoId,e.target.value)});
+    date.title="Дата начала соответствия (не ранее текущего дня по Москве)";
+    controls.appendChild(date);
     controls.appendChild(btn("Привязать",()=>approveWarehouseMap(w),"btn small",state.busy));
   }else controls.appendChild(badge("Не привязан",true));
   return node("tr",{},[
