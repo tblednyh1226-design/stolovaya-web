@@ -78,7 +78,7 @@ if(!isolated||!token){
      ]));
      const cols=[
        ["dishName","Блюдо"],["opening","Начало"],["moved","Перемещения"],
-       ["fromKitchen","С кухни"],["internalIn","Внутренний приход"],
+       ["fromKitchen","С кухни"],["prepared","Приготовлено"],["internalIn","Внутренний приход"],
        ["internalOut","Внутренний расход"],["thawed","Разморозка"],
        ["available","Доступно"],["leftover","Конец"],["waste","Утиль"],
        ["frozen","Заморозка"],["sold","Продано"],["status","Проверка"]
