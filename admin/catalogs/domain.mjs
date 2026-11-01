@@ -38,7 +38,7 @@ export function buildManualIikoSelection(selections) {
      throw new Error("Для каждой позиции укажите: создать или связать");
    if(item.action==="link") {
      const dishId=String(item.dishId||"").trim();
-     if(!/^[0-9a-f]{8}-[0-9a-f-]{27,36}$/i.test(dishId))
+     if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(dishId))
        throw new Error("Выберите существующее блюдо для связи");
      rows.push({iikoId,action:"link",dishId});
    } else {
