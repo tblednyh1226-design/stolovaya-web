@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta http-equiv="Cache-Control" content="no-store">
+  <title>Столовая — Справочники (разработка)</title>
+  <link rel="stylesheet" href="catalogs.css">
+</head>
+<body>
+  <main id="catalogs-app" aria-live="polite">
+    <div class="loading">Загрузка раздела «Справочники»…</div>
+  </main>
+  <!-- An isolated deployment injects window.STOLOVAYA_CATALOGS_CONFIG.
+       No fallback to production Supabase and no service_role key in frontend. -->
+  <script type="module" src="catalogs.js"></script>
+</body>
+</html>
