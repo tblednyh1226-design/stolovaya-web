@@ -27,3 +27,23 @@ export function summarizeIikoPreview(kind,rows) {
   }
   return {valid,invalid,requiresManualWarehouseMapping:kind==="warehouses"};
 }
+
+export function buildManualIikoSelection(selections) {
+ if (!(selections instanceof Map) || selections.size < 1 || selections.size > 100)
+   throw new Error("Выберите от 1 до 100 новых позиций iiko");
+ const rows=[];
+ for (const [id,item] of selections.entries()) {
+   const iikoId=String(id||"").trim();
+   if(!iikoId || !item || !["create","link"].includes(item.action))
+     throw new Error("Для каждой позиции укажите: создать или связать");
+   if(item.action==="link") {
+     const dishId=String(item.dishId||"").trim();
+     if(!/^[0-9a-f]{8}-[0-9a-f-]{27,36}$/i.test(dishId))
+       throw new Error("Выберите существующее блюдо для связи");
+     rows.push({iikoId,action:"link",dishId});
+   } else {
+     rows.push({iikoId,action:"create"});
+   }
+ }
+ return rows;
+}
