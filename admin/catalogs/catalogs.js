@@ -8,7 +8,8 @@ const ready=Boolean(cfg.rpcBase&&cfg.catalogSyncUrl&&cfg.publishableKey&&
 const titles={dishes:"Номенклатура",warehouses:"Склады",employees:"Сотрудники"};
 const state={token:ready?(sessionStorage.getItem("stolovaya:catalog-admin")||""):"",
  name:sessionStorage.getItem("stolovaya:catalog-name")||"",owner:false,kind:"dishes",
- search:"",offset:0,total:0,limit:50,rows:[],points:[],warehouseExternal:[],
+ search:"",offset:0,total:0,limit:50,rows:[],points:[],warehouseExternal:[],warehouseMapRows:[],warehouseMapPoints:[],
+ warehouseMapHistory:[],warehouseMapSelection:new Map(),
  candidateRows:[],candidateTotal:0,candidateSearch:"",candidateOffset:0,
  candidateLimit:40,candidateOnlyNew:true,manualChoices:new Map(),dishOptions:[],
  iikoProducts:[],iikoProductTotal:0,edit:null,preview:null,
@@ -71,8 +72,10 @@ async function load(){
  state.total=Number(r.total||0);state.owner=Boolean(r.isOwner);
  if(state.kind==="dishes")await loadCandidates();
  if(state.kind==="warehouses"){
-   const ext=await rpc("catalog_admin_iiko_warehouses",{p_token:state.token});
-   state.warehouseExternal=Array.isArray(ext.rows)?ext.rows:[];
+   const ext=await rpc("catalog_admin_warehouse_mappings",{p_token:state.token});
+   state.warehouseMapRows=Array.isArray(ext.warehouses)?ext.warehouses:[];
+   state.warehouseMapPoints=Array.isArray(ext.points)?ext.points:[];
+   state.warehouseMapHistory=Array.isArray(ext.history)?ext.history:[];
  }
 }
 
@@ -417,6 +420,102 @@ async function applyPreview(){
   state.message="Добавлено "+r.added+", обновлено "+r.updated+", пропущено "+r.skipped;
  });
 }
+
+async function approveWarehouseMap(warehouse){
+ if(!state.owner||!ready)return;
+ const code=state.warehouseMapSelection.get(warehouse.iikoId)||"";
+ if(!code){notice("Выберите конкретную точку Столовой",true);return}
+ const point=state.warehouseMapPoints.find(p=>p.pointCode===code);
+ if(!point){notice("Неизвестная точка",true);return}
+ const message="Подтвердите новое соответствие:\nСклад iiko: "+warehouse.iikoName+
+  "\nТочка Столовой: "+point.pointName+" ("+code+")"+
+  "\n\nДата начала: сегодня по Москве. Закрытые документы и прежние маршруты не изменятся.";
+ if(!window.confirm(message))return;
+ await operation(async()=>{
+  const r=await rpc("catalog_admin_map_iiko_warehouse",{
+    p_token:state.token,p_iiko_id:warehouse.iikoId,p_point_code:code,p_effective_from:null
+  });
+  state.warehouseMapSelection.delete(warehouse.iikoId);
+  await load();
+  state.message="Склад "+warehouse.iikoName+" привязан к "+point.pointName+
+    " с "+r.effectiveFrom+". История не пересчитана.";
+ });
+}
+async function endWarehouseMap(warehouse){
+ if(!state.owner||!ready||!warehouse.mappedPointCode)return;
+ if(!window.confirm("Завершить связь "+warehouse.iikoName+" → "+
+    warehouse.mappedPointName+" сегодняшней датой?\nНовое соответствие можно назначить только с завтрашнего дня. Старые документы не меняются."))return;
+ await operation(async()=>{
+  const r=await rpc("catalog_admin_end_iiko_warehouse_link",{
+    p_token:state.token,p_iiko_id:warehouse.iikoId,p_valid_to:null
+  });
+  await load();
+  state.message="Привязка завершена датой "+r.validTo+
+    ". Созданные ранее документы остались неизменными.";
+ });
+}
+function drawWarehouseMapping(){
+ if(state.kind!=="warehouses")return null;
+ const rows=state.warehouseMapRows.map(w=>{
+  const assigned=Boolean(w.mappedPointCode);
+  const controls=node("div",{class:"label-list"});
+  if(assigned){
+    controls.appendChild(badge(w.mappedPointName+" · "+w.purpose));
+    if(state.owner)controls.appendChild(btn("Завершить",()=>endWarehouseMap(w),
+      "btn light small",state.busy));
+  }else if(state.owner){
+    const choice=node("select",{onChange:e=>state.warehouseMapSelection.set(w.iikoId,e.target.value)},[
+      node("option",{value:"",text:"Выберите точку вручную"}),
+      ...state.warehouseMapPoints.map(p=>node("option",{
+        value:p.pointCode,text:p.pointName+" ("+p.pointCode+")"
+      }))
+    ]);
+    choice.value=state.warehouseMapSelection.get(w.iikoId)||"";
+    controls.appendChild(choice);
+    controls.appendChild(btn("Привязать",()=>approveWarehouseMap(w),"btn small",state.busy));
+  }else controls.appendChild(badge("Не привязан",true));
+  return node("tr",{},[
+    node("td",{},[text("b",w.iikoName),text("div",w.iikoCode||"Нет артикула","mono")]),
+    node("td",{},[text("span",w.iikoId,"mono")]),
+    node("td",{},[assigned?badge(w.mappedPointCode):badge("Не назначено",true)]),
+    node("td",{},[assigned?String(w.effectiveFrom||"—"):"—"]),
+    node("td",{},[controls])
+  ]);
+ });
+ const table=node("table",{class:"data-table"},[
+  node("thead",{},[node("tr",{},
+   ["Склад iiko","Внешний ID","Точка Столовой","Действует с","Управление"].map(x=>text("th",x)))]),
+  node("tbody",{},rows.length?rows:[node("tr",{},[
+    node("td",{colspan:5,class:"empty",
+      text:"Сначала обновите справочник складов из iiko. Соответствия не назначаются автоматически."})
+  ])])
+ ]);
+ const linked=state.warehouseMapRows.filter(x=>x.mappedPointCode).length;
+ return node("section",{class:"card stack",style:"margin-top:18px"},[
+   node("div",{class:"heading"},[
+     node("div",{},[
+      text("h2","Соответствия складов iiko и точек Столовой"),
+      text("p","БК, БР, ПК, ПР — разные точки. Склад выбирается вручную по внешнему ID, а не только по похожему названию.","help")
+     ]),
+     badge("Привязано: "+linked+" из "+state.warehouseMapRows.length)
+   ]),
+   node("div",{class:"notice",text:
+     "Защита: «Бухара раздача» нельзя связать с БК, а «Правда кухня» — с ПР. Отсутствующие соответствия не угадываются. Старые маршруты не изменяются."}),
+   node("div",{class:"scroll"},[table]),
+   text("p","Назначение начинает действовать с текущей или будущей даты. Перенос прошлых документов запрещён. Изменение привязки записывается в журнал.","foot"),
+   ...(state.warehouseMapHistory.length?[node("details",{},[
+     node("summary",{text:"История соответствий · "+state.warehouseMapHistory.length}),
+     node("div",{class:"scroll"},[node("table",{class:"data-table"},[
+       node("thead",{},[node("tr",{},["ID склада iiko","Точка","С","По"].map(x=>text("th",x)))]),
+       node("tbody",{},state.warehouseMapHistory.map(item=>node("tr",{},[
+         text("td",item.iikoId),text("td",item.pointCode),
+         text("td",item.validFrom),text("td",item.validTo||"Действует")
+       ])))
+     ])])
+   ])]:[])
+ ]);
+}
+
 function drawView(){
  const wrapper=node("div",{class:"wrap"});
  const header=node("header",{},[
@@ -468,24 +567,7 @@ function drawView(){
   ])
  ]));
  if(state.kind==="dishes")wrapper.appendChild(drawManualSelection());
- if(state.kind==="warehouses"){
-  const cols=["Название склада в iiko","Артикул iiko","Возможный маршрут","ID iiko"];
-  const table=node("table",{class:"data-table"},[
-   node("thead",{},[node("tr",{},cols.map(x=>text("th",x)))]),
-   node("tbody",{},state.warehouseExternal.length?
-     state.warehouseExternal.map(w=>node("tr",{},[
-      text("td",w.name),text("td",w.code||"—"),
-      node("td",{},[badge(w.routeCandidates?"Есть маршрут (проверить)":"Нет подтверждённого маршрута",!w.routeCandidates)]),
-      node("td",{},[text("span",w.iikoId,"mono")])
-     ])):[node("tr",{},[node("td",{colspan:4,class:"empty",
-       text:"Список складов iiko ещё не загружен"})])])
-  ]);
-  wrapper.appendChild(node("section",{class:"card",style:"margin-top:18px"},[
-   text("h2","Склады из iiko"),
-   text("p","Внешние склады показываются отдельно. Название само по себе не определяет, к какой точке они относятся.","help"),
-   node("div",{class:"scroll"},[table])
-  ]));
- }
+ if(state.kind==="warehouses")wrapper.appendChild(drawWarehouseMapping());
  if(state.edit)wrapper.appendChild(drawEmployeeEditor());
  if(state.preview)wrapper.appendChild(drawPreview());
  wrapper.appendChild(text("p","Пометка на удаление сохраняет историю. Обновления iiko применяются только после подтверждения владельца.","foot"));
