@@ -125,11 +125,17 @@ if(!allowed||!token){
        w.mappedPointCode&&w.pointIsActive!==false);
    options(from,state.warehouses,"Выберите отправителя",x=>x.iikoName+" ("+x.mappedPointCode+")",x=>x.iikoId);
    options(to,state.warehouses,"Выберите получателя",x=>x.iikoName+" ("+x.mappedPointCode+")",x=>x.iikoId);
-   const total=await rpc("catalog_admin_directory",{
-      p_token:token,p_kind:"dishes",p_search:"",p_limit:200,p_offset:0});
-   state.dishes=(total.rows||[]);
-   if(Number(total.total)>state.dishes.length)
-     showStatus("Номенклатура загружена частично. Поиск остальных блюд добавим перед запуском.",true);
+   const all=[];
+   for(let offset=0;offset<5000;offset+=200){
+     const part=await rpc("catalog_admin_directory",{
+       p_token:token,p_kind:"dishes",p_search:"",p_limit:200,p_offset:offset});
+     const rows=part.rows||[];
+     all.push(...rows);
+     if(!rows.length||all.length>=Number(part.total||0))break;
+   }
+   state.dishes=all.filter(x=>x.isActive);
+   renderRows();
+   if(!state.dishes.length)showStatus("Нет активной номенклатуры для перемещения",true);
  }).catch(e=>showStatus("Не удалось открыть справочники: "+e.message,true));
  addRow();
 }
