@@ -8,7 +8,7 @@ const ready=Boolean(cfg.rpcBase&&cfg.catalogSyncUrl&&cfg.publishableKey&&
 const titles={dishes:"Номенклатура",warehouses:"Склады",employees:"Сотрудники"};
 const state={token:ready?(sessionStorage.getItem("stolovaya:catalog-admin")||""):"",
  name:sessionStorage.getItem("stolovaya:catalog-name")||"",owner:false,kind:"dishes",
- search:"",offset:0,total:0,limit:50,rows:[],points:[],edit:null,preview:null,
+ search:"",offset:0,total:0,limit:50,rows:[],points:[],warehouseExternal:[],edit:null,preview:null,
  message:"",error:false,busy:false};
 const node=(tag,attrs={},children=[])=>{
   const n=document.createElement(tag);
@@ -66,6 +66,10 @@ async function load(){
    p_kind:state.kind,p_search:state.search,p_limit:state.limit,p_offset:state.offset});
  state.rows=Array.isArray(r.rows)?r.rows:[];
  state.total=Number(r.total||0);state.owner=Boolean(r.isOwner);
+ if(state.kind==="warehouses"){
+   const ext=await rpc("catalog_admin_iiko_warehouses",{p_token:state.token});
+   state.warehouseExternal=Array.isArray(ext.rows)?ext.rows:[];
+ }
 }
 async function loadPoints(){
  if(!ready||!state.token)return;
@@ -88,6 +92,8 @@ async function signIn(event){
  });
 }
 function logout(){
+ const oldToken=state.token;
+ if(ready && oldToken)rpc("catalog_admin_logout",{p_token:oldToken}).catch(()=>{});
  state.token="";state.name="";state.owner=false;state.edit=null;state.preview=null;
  sessionStorage.removeItem("stolovaya:catalog-admin");
  sessionStorage.removeItem("stolovaya:catalog-name");render();
@@ -308,6 +314,24 @@ function drawView(){
    node("div",{class:"label-list"},[prev,next])
   ])
  ]));
+ if(state.kind==="warehouses"){
+  const cols=["Название склада в iiko","Артикул iiko","Возможный маршрут","ID iiko"];
+  const table=node("table",{class:"data-table"},[
+   node("thead",{},[node("tr",{},cols.map(x=>text("th",x)))]),
+   node("tbody",{},state.warehouseExternal.length?
+     state.warehouseExternal.map(w=>node("tr",{},[
+      text("td",w.name),text("td",w.code||"—"),
+      node("td",{},[badge(w.routeCandidates?"Есть маршрут (проверить)":"Нет подтверждённого маршрута",!w.routeCandidates)]),
+      node("td",{},[text("span",w.iikoId,"mono")])
+     ])):[node("tr",{},[node("td",{colspan:4,class:"empty",
+       text:"Список складов iiko ещё не загружен"})])])
+  ]);
+  wrapper.appendChild(node("section",{class:"card",style:"margin-top:18px"},[
+   text("h2","Склады из iiko"),
+   text("p","Внешние склады показываются отдельно. Название само по себе не определяет, к какой точке они относятся.","help"),
+   node("div",{class:"scroll"},[table])
+  ]));
+ }
  if(state.edit)wrapper.appendChild(drawEmployeeEditor());
  if(state.preview)wrapper.appendChild(drawPreview());
  wrapper.appendChild(text("p","Пометка на удаление сохраняет историю. Обновления iiko применяются только после подтверждения владельца.","foot"));
