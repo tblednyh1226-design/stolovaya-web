@@ -65,7 +65,7 @@ function card(d){
    '<div class="doc-top"><div><small>'+html(d.businessDate)+' · '+html(title(d.pointCode))+'</small><h2>'+html(d.number)+'</h2>'+
    '<p>На основании '+html(d.sourceTransfer||"перемещения кухни")+'</p>'+status(d)+'</div>'+
    '<div class="doc-controls"><button class="secondary" data-expand="'+html(d.id)+'">'+(open?"Скрыть состав":"Открыть акт")+'</button>'+
-   '<button class="primary" data-send="'+html(d.id)+'" '+(canSend?"":"disabled")+'>'+label+'</button></div></div>'+
+   '<button class="primary" data-send="'+html(d.id)+'" '+(canSend?"":"disabled")+'>'+label+'</button>'+ '<button class="secondary" data-force-send="'+html(d.id)+'" '+(state.busy||d.status==="exporting"?"disabled":"")+'>Выгрузить повторно</button></div></div>'+
    '<div class="route"><span>'+html(d.fromWarehouse)+'</span><span>→</span><span>'+html(d.toWarehouse)+'</span></div>'+
    '<div class="doc-qty"><span>Позиций: <b>'+html(d.itemCount)+'</b></span><span>Количество: <b>'+html(fmt(itemTotal))+'</b></span></div>'+
    (d.iikoDocumentNumber?'<p class="info">Номер в iiko: '+html(d.iikoDocumentNumber)+'</p>':"")+
@@ -94,6 +94,17 @@ function render(){
  };
  document.querySelectorAll("[data-expand]").forEach(b=>b.onclick=()=>{const id=b.dataset.expand;state.expanded.has(id)?state.expanded.delete(id):state.expanded.add(id);render()});
  document.querySelectorAll("[data-send]").forEach(b=>b.onclick=()=>send(b.dataset.send));
+ document.querySelectorAll("[data-force-send]").forEach(b=>b.onclick=()=>forceSend(b.dataset.forceSend));
+}
+async function forceSend(id){
+ const d=state.docs.find(x=>x.id===id);if(!d||state.busy||d.status==="exporting")return;
+ if(!confirm("Создать НОВЫЙ непроведённый акт приготовления в iiko? Возможен дубль. Администратор подтверждает повторную отправку."))return;
+ state.busy=id;state.message="Запускаю повторную выгрузку…";state.error=false;render();
+ try{const result=await rpc("admin_force_kitchen_production_to_iiko",{p_token:state.token,p_document_id:id});
+ if(result.alreadyQueued){state.message="Предыдущая выгрузка ещё выполняется";return}
+ state.message="Повторная выгрузка поставлена в очередь";
+ await new Promise(resolve=>setTimeout(resolve,3500));await load();
+ }catch(e){state.error=true;state.message=e.message||String(e)}finally{state.busy=null;render()}
 }
 async function send(id){
  const d=state.docs.find(x=>x.id===id);if(!d||!["ready_to_export","formed"].includes(d.status))return;
