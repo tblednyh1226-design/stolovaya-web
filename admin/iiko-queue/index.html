@@ -10,7 +10,7 @@ const more=document.getElementById('more');
 const escapeHtml=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 let documents=[], visible=30, loaded=false, requestSeq=0, pendingLoad=null;
 function description(row){
-  const statusNames={formed:'Сформирован',ready_to_export:'Готов к выгрузке',export_error:'Ошибка выгрузки',exporting:'Выгружается'};
+  const statusNames={formed:'Сформирован',ready_to_export:'Готов к выгрузке',export_error:'Ошибка выгрузки',exporting:'Выгружается',exported:'Отправлено в iiko'};
   return statusNames[row.status]||row.status||'Без статуса';
 }
 function needsReview(row){
@@ -35,9 +35,13 @@ function render(){
   list.innerHTML='<p class="meta">Всего: '+rows.length+' · Показано: '+Math.min(visible,rows.length)+'</p>'+
     rows.slice(0,visible).map(row=>{
       const blocked=row.kind==='kitchen_transfer'&&!row.movementId;
-      const linked=row.status==='ready_to_export'&&(Boolean(row.isLinked)||Boolean(row.exported_at)||Boolean(row.iiko_document_id)||Boolean(row.iiko_document_number));
-      const button=blocked
-        ? '<p class="warn">'+(row.foundInIiko?'Документ уже найден в iiko, есть расхождения. Повторная выгрузка заблокирована.':'Требуется проверка в iiko перед повторной отправкой.')+'</p>'
+      const linked=Boolean(row.isLinked);
+      const button=row.status==='exported'
+        ? '<button type="button" class="action" disabled>Отправлено в iiko</button>'
+        : row.status==='exporting'
+        ? '<button type="button" class="action" disabled>Выгружается в iiko</button>'
+        : blocked
+        ? '<p class="warn">'+(row.foundInIiko?'Документ уже найден в iiko, есть расхождения. Повторная выгрузка доступна из списка документов.':'Требуется проверка в iiko перед повторной отправкой.')+'</p>'
         : '<button type="button" class="action" data-id="'+escapeHtml(row.id)+'">'+(linked?'Повторно выгрузить в iiko':'Выгрузить в iiko')+'</button>';
       return '<article><b>'+escapeHtml(row.date)+' · '+escapeHtml(row.point)+'</b>'+
         '<p class="cardline">'+escapeHtml(row.type)+(row.number?' · № '+escapeHtml(row.number):'')+'</p>'+
@@ -105,8 +109,8 @@ list.addEventListener('click',async event=>{
   const button=event.target.closest('button[data-id]');
   if(!button)return;
   const row=documents.find(item=>item.id===button.dataset.id);
-  if(!row||row.kind==='kitchen_transfer'&&!row.movementId)return;
-  const update=row.status==='ready_to_export'&&(Boolean(row.isLinked)||Boolean(row.exported_at)||Boolean(row.iiko_document_id)||Boolean(row.iiko_document_number));
+  if(!row||row.status==='exported'||row.status==='exporting'||row.kind==='kitchen_transfer'&&!row.movementId)return;
+  const update=Boolean(row.isLinked);
   if(!confirm((update?'Повторно отправить':'Отправить')+' документ «'+row.type+'» № '+(row.number||'без номера')+' в iiko?'))return;
   button.disabled=true;
   message.textContent='Запрос отправляется…';
