@@ -34,11 +34,11 @@ function render(){
   }
   list.innerHTML='<p class="meta">Всего: '+rows.length+' · Показано: '+Math.min(visible,rows.length)+'</p>'+
     rows.slice(0,visible).map(row=>{
-      const blocked=needsReview(row)||row.foundInIiko||row.kind==='kitchen_transfer'&&!row.movementId;
-      const linked=row.kind==='kitchen_transfer'&&row.isLinked;
+      const blocked=row.kind==='kitchen_transfer'&&!row.movementId;
+      const linked=row.status==='ready_to_export'&&(Boolean(row.isLinked)||Boolean(row.exported_at)||Boolean(row.iiko_document_id)||Boolean(row.iiko_document_number));
       const button=blocked
         ? '<p class="warn">'+(row.foundInIiko?'Документ уже найден в iiko, есть расхождения. Повторная выгрузка заблокирована.':'Требуется проверка в iiko перед повторной отправкой.')+'</p>'
-        : '<button type="button" class="action" data-id="'+escapeHtml(row.id)+'">'+(linked?'Обновить в iiko':'Выгрузить в iiko')+'</button>';
+        : '<button type="button" class="action" data-id="'+escapeHtml(row.id)+'">'+(linked?'Повторно выгрузить в iiko':'Выгрузить в iiko')+'</button>';
       return '<article><b>'+escapeHtml(row.date)+' · '+escapeHtml(row.point)+'</b>'+
         '<p class="cardline">'+escapeHtml(row.type)+(row.number?' · № '+escapeHtml(row.number):'')+'</p>'+
         '<p class="cardline">Статус: '+escapeHtml(row.foundInIiko?'Найден в iiko — есть расхождения':description(row))+'</p>'+
@@ -105,9 +105,9 @@ list.addEventListener('click',async event=>{
   const button=event.target.closest('button[data-id]');
   if(!button)return;
   const row=documents.find(item=>item.id===button.dataset.id);
-  if(!row||needsReview(row)||row.foundInIiko||row.kind==='kitchen_transfer'&&!row.movementId)return;
-  const update=row.kind==='kitchen_transfer'&&row.isLinked;
-  if(!confirm((update?'Обновить':'Отправить')+' документ «'+row.type+'» № '+(row.number||'без номера')+' в iiko?'))return;
+  if(!row||row.kind==='kitchen_transfer'&&!row.movementId)return;
+  const update=row.status==='ready_to_export'&&(Boolean(row.isLinked)||Boolean(row.exported_at)||Boolean(row.iiko_document_id)||Boolean(row.iiko_document_number));
+  if(!confirm((update?'Повторно отправить':'Отправить')+' документ «'+row.type+'» № '+(row.number||'без номера')+' в iiko?'))return;
   button.disabled=true;
   message.textContent='Запрос отправляется…';
   try{
