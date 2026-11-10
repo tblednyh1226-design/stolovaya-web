@@ -9,7 +9,7 @@ const A=(name,href)=>{const a=E("a",name);a.href=href;return a};
 const opt=(name,value)=>{const o=E("option",name);o.value=value;return o};
 const field=(name,control)=>W("label","field",E("span",name),control);
 const notice=(name,error=false)=>E("div",name,error?"notice error":"notice");
-const types={internal_transfer:"Внутреннее перемещение",movement:"Перемещение",kitchen_supply:"Получение с кухни",generated:"Реализация / утиль",kitchen_generated:"Приготовление / iiko",freezer_inventory:"Инвентаризация",closing:"Закрытие дня"};
+const types={internal_transfer:"Внутреннее перемещение",movement:"Перемещение",kitchen_supply:"Получение с кухни",generated:"Реализация / утиль",kitchen_generated:"Приготовление / iiko",freezer:"Заморозка / разморозка",freezer_inventory:"Инвентаризация",closing:"Закрытие дня"};
 const status={received:"Получено",sent:"Отправлено",discrepancy:"Расхождение",cancelled:"Отменено",marked_for_deletion:"Помечен на удаление",exported:"Отправлено в iiko",ready_to_export:"К отправке",draft:"Черновик",formed:"Сформирован",complete:"Сдано"};
 const moscow=()=>{const p=Object.fromEntries(new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Moscow",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date()).filter(v=>v.type!=="literal").map(v=>[v.type,v.value]));return p.year+"-"+p.month+"-"+p.day};
 const state={to:moscow(),from:moscow().slice(0,8)+"01",type:"",point:"",showMarked:true,limit:100,offset:0,rows:[],points:[],total:0,selected:null,detail:null,reason:"",error:"",busy:false};
@@ -65,6 +65,13 @@ function detailView(){
    tbl.append(thead,tb);section.appendChild(tbl);
  }
  if(content.comment)section.appendChild(E("p","Комментарий: "+content.comment,"small"));
+ if(Array.isArray(state.detail.history)&&state.detail.history.length){
+   const history=W("details","",E("summary","История изменений · "+state.detail.history.length));
+   for(const event of state.detail.history){
+      history.appendChild(E("p",String(event.at||"")+" · "+String(event.action||""),"small"));
+   }
+   section.appendChild(history);
+ }
  const actions=W("div","actions");
  const edit=B("Редактировать",()=>{},"btn light"),send=B("Отправить в iiko",()=>{},"btn light");
  edit.disabled=true;send.disabled=true;
