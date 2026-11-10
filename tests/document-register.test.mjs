@@ -36,3 +36,12 @@ test("real iiko operations disabled until integration is tested",()=>{
  assert.ok(src.includes("Отправить в iiko"));
  assert.ok(html.includes("register.js"));
 });
+
+test("marked-for-deletion documents visibly show a red crossed icon in list and detail",()=>{
+ assert.ok(src.includes('"doc-icon"+(d.marked?" is-marked":"")'));
+ assert.ok(src.includes('icon.setAttribute("aria-label",d.marked?"Помечен на удаление":"Документ")'));
+ assert.ok(src.includes('detailIcon.setAttribute("aria-label",d.marked?"Помечен на удаление":"Документ")'));
+ assert.ok(css.includes(".doc-icon.is-marked::after{content:'×'"));
+ assert.ok(css.includes("background:#c92f31"));
+ assert.ok(src.includes('status[d.status]||d.status'));
+});
