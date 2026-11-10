@@ -34,8 +34,18 @@ function render(){
   const key=d.type+"|"+d.id,row=E("tr",null,(state.selected===key?"selected ":"")+(d.marked?"deleted":""));
   row.tabIndex=0;row.onclick=()=>void openDoc(d);row.onkeydown=e=>{if(e.key==="Enter")void openDoc(d)};
   for(const txt of [d.date,d.title,d.from||"—",d.to||"—",status[d.status]||d.status]){
-    const td=E("td"),t=E("span",txt);if(txt===d.title)t.className="open";if(txt===(status[d.status]||d.status))t.className="status"+(d.marked?" deleted":"");
-    td.appendChild(t);row.appendChild(td);
+    const td=E("td"),t=E("span",txt);
+   if(txt===d.title){
+     const icon=E("span","▤","doc-icon"+(d.marked?" is-marked":""));
+     icon.setAttribute("aria-label",d.marked?"Помечен на удаление":"Документ");
+     if(d.marked)icon.title="Помечен на удаление";
+     t.className="open";
+     td.append(icon,t);
+   }else{
+     if(txt===(status[d.status]||d.status))t.className="status"+(d.marked?" deleted":"");
+     td.appendChild(t);
+   }
+   row.appendChild(td);
   }
   body.appendChild(row);
  }
@@ -51,7 +61,11 @@ function render(){
 function detailView(){
  const d=state.rows.find(x=>x.type+"|"+x.id===state.selected);if(!d)return E("div","Документ не найден");
  const content=state.detail.document||{},check=state.detail.deletion||{},section=E("div",null,"doc");
- section.append(E("div",types[d.type]||d.type,"small"),E("h2",d.title));
+ section.append(E("div",types[d.type]||d.type,"small"));
+ const detailTitle=E("h2"),detailIcon=E("span","▤","doc-icon"+(d.marked?" is-marked":""));
+ detailIcon.setAttribute("aria-label",d.marked?"Помечен на удаление":"Документ");
+ detailTitle.append(detailIcon,E("span",d.title));
+ section.appendChild(detailTitle);
  const metadata=W("div","meta");
  for(const [k,v] of [["Дата",d.date],["Статус",status[d.status]||d.status],["Отправитель",d.from],["Получатель",d.to],["Номер/ID",d.id]]){
   metadata.appendChild(W("div","",E("strong",k),E("span",v||"—")));
