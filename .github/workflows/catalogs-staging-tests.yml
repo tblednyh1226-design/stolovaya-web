@@ -6,9 +6,12 @@ on:
       - "admin/catalogs/**"
       - "admin/closing-audit/**"
       - "admin/warehouse-transfers/**"
+      - "admin/document-register/**"
+      - "admin/admin.js"
       - "tests/catalogs.test.mjs"
       - "tests/closing-audit.test.mjs"
       - "tests/warehouse-transfers.test.mjs"
+      - "tests/document-register.test.mjs"
       - ".github/workflows/catalogs-staging-tests.yml"
   workflow_dispatch:
 permissions:
@@ -29,3 +32,5 @@ jobs:
       - run: node --test tests/closing-audit.test.mjs
       - run: node --check admin/warehouse-transfers/transfers.js
       - run: node --test tests/warehouse-transfers.test.mjs
+      - run: node --check admin/document-register/register.js
+      - run: node --test tests/document-register.test.mjs
