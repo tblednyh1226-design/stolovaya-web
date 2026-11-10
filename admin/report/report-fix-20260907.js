@@ -3,16 +3,26 @@
   const originalGroups=groups;
   const activityKeys=['opening_qty','received_qty','leftover_qty','waste_qty','frozen_qty','sold_qty','kitchen_in_qty','internal_in_qty','internal_out_qty','thawed_qty'];
   function hasActivity(r){return activityKeys.some(k=>Math.abs(Number(r?.[k]||0))>0)}
-  // In the main matrix/export show only dishes that have a balance or any movement
-  // on at least one currently selected point. Freezer grouping is left unchanged.
+  // Kitchen carryover must not expand the shared assortment when serving
+  // points are included. Kitchen values still appear for shown dishes.
+  const kitchenCodes=new Set(['BUKHARA_KITCHEN','PRAVDA_KITCHEN']);
+  function visibleMainDishIds(){
+    if(!state.report)return new Set();
+    const servingCodes=[...state.selected].filter(code=>!kitchenCodes.has(code));
+    // Only kitchens selected: display their inventory intentionally.
+    const eligible=new Set(servingCodes.length?servingCodes:state.selected);
+    return new Set((state.report.rows||[])
+      .filter(r=>eligible.has(r.point_code)&&hasActivity(r))
+      .map(r=>r.dish_id));
+  }
+  window.reportVisibleMainRows=function(){
+    const ids=visibleMainDishIds();
+    return (state.report?.rows||[]).filter(r=>ids.has(r.dish_id));
+  };
+  // Only the main report and its Excel export are filtered; freezer is untouched.
   groups=function(rows){
-    if(state.report && rows===state.report.rows){
-      const visibleDishIds=new Set(
-        rows.filter(r=>state.selected.has(r.point_code)&&hasActivity(r)).map(r=>r.dish_id)
-      );
-      rows=rows.filter(r=>visibleDishIds.has(r.dish_id));
-    }
-    return originalGroups(rows);
+    return originalGroups(state.report&&rows===state.report.rows?
+      window.reportVisibleMainRows():rows);
   };
   function periodLabel(){
     if(!state.report)return '';
@@ -20,7 +30,7 @@
     return `${state.report.fromDate||state.from} — ${state.report.toDate||state.to}`;
   }
   function sumPoint(code,key){
-    return (state.report?.rows||[]).filter(r=>r.point_code===code).reduce((s,r)=>s+Number(r[key]||0),0);
+    return window.reportVisibleMainRows().filter(r=>r.point_code===code).reduce((s,r)=>s+Number(r[key]||0),0);
   }
   function addGroupTotals(){
     if(!state.report)return;
